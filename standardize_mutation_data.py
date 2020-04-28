@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 
 # Copyright (c) 2020 Memorial Sloan Kettering Cancer Center
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in all
 # copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -221,7 +221,7 @@ VCF_VARIANT_ALLELE1_VALUE = "1"
 VCF_VARIANT_ALLELE2_VALUE = "2"
 VCF_DEFAULT_VARIANT_ALLELE_IDX = 1
 
-NULL_OR_MISSING_VALUES = set(["", "", "N/A", None, ".", "?"])
+NULL_OR_MISSING_VALUES = set(["", "N/A", None, ".", "?"])
 NULL_OR_MISSING_VCF_VALUES = set(["", ".", "./."])
 
 # ----------------------------------------------------------------
@@ -229,16 +229,18 @@ NULL_OR_MISSING_VCF_VALUES = set(["", ".", "./."])
 def get_file_header(filename):
     """ Returns the file header as a list. """
     header = []
+    raw_header_line = ""
     with open(filename, "r") as data_file:
         for line in data_file.readlines():
             if line.startswith("#"):
                 continue
+            raw_header_line = line
             header = list(map(str.strip, line.split("\t")))
             break
     if not header:
         print("Could not extract header from mutation data file: %s - Exiting..." % (filename))
         sys.exit(2)
-    return header
+    return (header, raw_header_line)
 
 def process_datum(value):
     """
@@ -285,10 +287,11 @@ def resolve_tumor_seq_alleles(data, ref_allele):
 
 
 def print_warning(message):
-    print(message, ERROR_FILE)
+    print(message, file = ERROR_FILE)
 
 def resolve_variant_type(data, ref_allele, tum_seq_allele):
     """ Resolve variant type.  """
+    variant_type = ""
     for column in VARIANT_TYPE_COLUMNS:
         if column in data.keys():
             variant_type = process_datum(data[column].upper())
@@ -317,15 +320,16 @@ def resolve_variant_type(data, ref_allele, tum_seq_allele):
             else:
                 variant_type = "ONP"
 
-    if variant_type == "":
-        message = "Could not salvage variant type from alleles [ ref allele = %s , tumor allele = %s ] " % (ref_allele, tum_seq_allele)
-        print_warning(message)
-
     # if variant type still not in VALID_VARIANT_TYPES then must be SUB/SNV
     if variant_type == "SNV":
         variant_type = "SNP"
     elif variant_type.upper() == "SUB":
         variant_type = "ONP"
+
+    # if variant type is still an empty string then report error to user
+    if variant_type == "":
+        message = "Could not salvage variant type from alleles [ ref allele = %s , tumor allele = %s ] " % (ref_allele, tum_seq_allele)
+        print_warning(message)
     return variant_type
 
 def resolve_complex_variant_classification(data, variant_class_list, variant_type):
@@ -935,7 +939,7 @@ def all_values_in_list(values_to_check, input_list):
             return False
     return True
 
-def get_vcf_variant_allele_idx(tumor_sample_format_data, normal_sample_format_data):
+def get_vcf_variant_allele_idx(tumor_sample_format_data, normal_sample_format_data, vcf_alleles):
     """
         Determines the variant allele index to use based on genotype information if available.
         If genotype information is not available or a call could not be made for a sample at
@@ -955,13 +959,18 @@ def get_vcf_variant_allele_idx(tumor_sample_format_data, normal_sample_format_da
         variant_allele_idx = [allele for allele in tumor_sample_genotype_info if allele != VCF_REFERENCE_ALLELE_VALUE and not is_missing_vcf_data_value(allele)]
 
         # if possible, choose the first non-REF tumor allele that is also not in normal genotype
-        # if this check results in variant_allele_idx being empty then use the default value "VCF_DEFAULT_VARIANT_ALLELE_IDX"
+        # if this check results in variant_allele_idx being empty or the index value is larger than
+        # the size of the alleles then use the default value "VCF_DEFAULT_VARIANT_ALLELE_IDX"
         if normal_sample_format_data != None and "GT" in normal_sample_format_data.keys() and not is_missing_vcf_data_value(normal_sample_format_data["GT"]):
             normal_sample_genotype_info = re.split("[\/|]", normal_sample_format_data["GT"])
             variant_allele_idx = [allele for allele in tumor_sample_genotype_info if allele != VCF_REFERENCE_ALLELE_VALUE and not is_missing_vcf_data_value(allele) and not allele in normal_sample_genotype_info]
-    if variant_allele_idx != []:
-        return int(variant_allele_idx[0])
-    return VCF_DEFAULT_VARIANT_ALLELE_IDX
+
+    # if the idx found is undefined or is equal to or larger than the size of the vcf alleles list
+    # then use the vcf default value for the variant allele index
+    if variant_allele_idx == [] or not is_valid_integer(variant_allele_idx[0]) or int(variant_allele_idx[0]) >= len(vcf_alleles):
+        return VCF_DEFAULT_VARIANT_ALLELE_IDX
+    return int(variant_allele_idx[0])
+
 
 def is_varscan_vcf(vcf_format_data_keys):
     return ("RD" in vcf_format_data_keys)
@@ -1128,12 +1137,12 @@ def resolve_vcf_allele_depth_values(mapped_sample_format_data, vcf_alleles, vari
     # 8. cgpPINDEL: handle VCF lines from cgpPindel, where ALT depth and total depth are in PP:NP:PR:NR
     elif is_cgppindel_vcf(vcf_format_data_keys):
         # reference allele depth and depths for any other ALT alleles must be left undefined
-        allele_depth_values[variant_allele_idx] = str(int(mapped_sample_format_data["PP"]) + int(mapped_sample_format_data["NP"]))
-        mapped_sample_format_data["DP"] = str(int(mapped_sample_format_data["PR"]) + int(mapped_sample_format_data["NR"]))
+        allele_depth_values[variant_allele_idx] = str(float(mapped_sample_format_data["PP"]) + float(mapped_sample_format_data["NP"]))
+        mapped_sample_format_data["DP"] = str(float(mapped_sample_format_data["PR"]) + float(mapped_sample_format_data["NR"]))
 
     # 9. VCF ALT allele fractions: handle VCF lines with ALT allele fraction in FA, which needs to be multiplied by DP to get AD
     elif is_alt_allele_fraction_vcf(vcf_format_data_keys) and not is_missing_vcf_data_value(mapped_sample_format_data["DP"]):
-        allele_depth_values[variant_allele_idx] = "%.0f" % (int(mapped_sample_format_data["FA"]) * int(mapped_sample_format_data["DP"]))
+        allele_depth_values[variant_allele_idx] = "%.0f" % (float(mapped_sample_format_data["FA"]) * float(mapped_sample_format_data["DP"]))
 
     # 10. MPileUp/BCFTools: handle VCF lines from mpileup/bcftools where DV contains the ALT allele depth
     elif is_mpileup_bcftools_vcf(vcf_format_data_keys):
@@ -1152,24 +1161,24 @@ def resolve_vcf_allele_depth_values(mapped_sample_format_data, vcf_alleles, vari
     vcf_dp_value = process_datum(mapped_sample_format_data.get("DP", ""))
     # Sanity check that REF/ALT allele depths are lower than the total depth
     if (
-        "DP" in vcf_format_data_keys and vcf_dp_value != ""
+        "DP" in vcf_format_data_keys and not is_missing_vcf_data_value(vcf_dp_value)
         and (
-                ref_count != "" and int(ref_count) > int(vcf_dp_value)
-                or (alt_count != "" and int(alt_count) > int(vcf_dp_value))
-                or (ref_count != "" and alt_count != "" and ((int(ref_count) + int(alt_count)) > int(vcf_dp_value)))
+                not is_missing_vcf_data_value(ref_count) and float(ref_count) > float(vcf_dp_value)
+                or (not is_missing_vcf_data_value(alt_count) and float(alt_count) > float(vcf_dp_value))
+                or (not is_missing_vcf_data_value(ref_count) and not is_missing_vcf_data_value(alt_count) and ((float(ref_count) + float(alt_count)) > float(vcf_dp_value)))
             )
         ):
-        mapped_sample_format_data["DP"] = str(sum(map(int, allele_depth_values)))
+        mapped_sample_format_data["DP"] = str(sum(map(float, allele_depth_values)))
 
     # if we have REF/ALT allele depths, but no DP, then set DP equal to the sum of all ADs
     if (
-        (ref_count != "" and alt_count != "")
+        (not is_missing_vcf_data_value(ref_count) and not is_missing_vcf_data_value(alt_count))
         and (
                 not "DP" in vcf_format_data_keys
-                or mapped_sample_format_data["DP"] == ""
+                or is_missing_vcf_data_value(mapped_sample_format_data["DP"])
             )
         ):
-        mapped_sample_format_data["DP"] = str(sum(map(int, allele_depth_values)))
+        mapped_sample_format_data["DP"] = str(sum(map(float, allele_depth_values)))
     mapped_sample_format_data["AD"] = ",".join(allele_depth_values)
 
     try:
@@ -1192,7 +1201,7 @@ def resolve_vcf_counts_data(vcf_data, maf_data, matched_normal_sample_id, tumor_
     if matched_normal_sample_id in vcf_data.keys():
         normal_sample_format_data = vcf_data["MAPPED_NORMAL_FORMAT_DATA"]
 
-    variant_allele_idx = get_vcf_variant_allele_idx(tumor_sample_format_data, normal_sample_format_data)
+    variant_allele_idx = get_vcf_variant_allele_idx(tumor_sample_format_data, normal_sample_format_data, vcf_alleles)
 
     (t_ref_count, t_alt_count, t_depth) = resolve_vcf_allele_depth_values(tumor_sample_format_data, vcf_alleles, variant_allele_idx, vcf_data)
     maf_data["t_ref_count"] = t_ref_count
@@ -1303,15 +1312,17 @@ def is_valid_vcf_maf_record(maf_record):
 
 def get_vcf_file_header(filename):
     vcf_file_header = []
+    raw_header_line = ""
     with open(filename, "r") as vcf_file:
         for line in vcf_file.readlines():
             if line.startswith("#CHROM"):
+                raw_header_line = line
                 vcf_file_header = list(map(str.strip, line.replace("#", "").split("\t")))
                 break
     if not vcf_file_header:
         print("Could not extract VCF header from file: %s - Exiting..." % (filename))
         sys.exit(2)
-    return vcf_file_header
+    return (vcf_file_header, raw_header_line)
 
 def extract_vcf_data_from_file(filename, center_name, sequence_source):
     """ Load data from a VCF file. """
@@ -1326,21 +1337,12 @@ def extract_vcf_data_from_file(filename, center_name, sequence_source):
     maf_data = []
     vcf_data_errors = []
     with open(filename, "r") as data_file:
-        vcf_file_header = get_vcf_file_header(filename)
-        header_processed = False
+        (vcf_file_header, raw_header_line) = get_vcf_file_header(filename)
         for line in data_file.readlines():
-            # skip commented lines
-            if line.startswith("#") and not line.startswith("#CHROM"):
-                continue
-            # the file header is already known, skip the header line
-            if not header_processed and line.startswith("#CHROM"):
-                header_processed = True
-                continue
-            # skip empty lines
-            if not line.strip():
+            if not is_valid_mutation_record_to_process(raw_header_line, vcf_file_header, line):
                 continue
             # map vcf data values to columns in file header
-            vcf_data = dict(zip(vcf_file_header, list(map(str.strip, line.split("\t")))))
+            vcf_data = map_data_values_to_header(vcf_file_header, line)
             # do some additional processing on the VCF columns "INFO", "FORMAT", the identified tumor_sample_data_col, and the NORMAL column (if NORMAL is present)
             extract_vcf_format_info_data(vcf_data, tumor_sample_data_col, matched_normal_sample_id)
             maf_record = create_maf_record_from_vcf(sample_id, center_name, sequence_source, vcf_data, is_germline_data, matched_normal_sample_id, tumor_sample_data_col)
@@ -1351,26 +1353,52 @@ def extract_vcf_data_from_file(filename, center_name, sequence_source):
     print_data_loading_summary(filename, len(maf_data), rejected_vars_by_varclass, rejected_vars_by_mutstatus, rejected_vars_by_inc_data, vcf_data_errors)
     return maf_data
 
+def is_valid_mutation_record_to_process(raw_header_line, header, line):
+    """
+        Determines whether the current line is a valid record in the mutation file that should be processed.
+
+        A record is considered invalid if:
+            - it is a duplicate of the header line
+            - the number of fields in the line does not match the number of fields in the header
+            - the line begins with a '#'
+            - the line is empty
+    """
+    if line.strip() == raw_header_line.strip():
+        return False
+    if not line.strip():
+        return False
+    if line.startswith("#"):
+        return False
+    split_line = list(map(str.strip, line.split("\t")))
+    if len(split_line) != len(header):
+        print_warning("Encountered record in file where the number of fields in the line does not match the expected number of fields in the header: \n%s\n\n- exiting..." % (line))
+        sys.exit(2)
+    return True
+
+def map_data_values_to_header(header, line):
+    """
+        Maps data values in 'line' to the column headers.
+    """
+    data = dict(zip(header, list(map(str.strip, line.split("\t")))))
+    return data
+
 def extract_maf_data_from_file(filename, center_name, sequence_source):
     rejected_vars_by_varclass = 0
     rejected_vars_by_mutstatus = 0
     rejected_vars_by_inc_data = 0
     records_loaded = 0
 
-    header = get_file_header(filename)
-    data_file = open(filename, "r")
-    data_reader = [line for line in data_file.readlines() if not line.startswith("#")][1:]
     maf_data = []
     print("\nLoading data from file: %s" % (filename))
-    for line in data_reader:
-        add_record = True
-        if list(map(str.strip, line.split("\t"))) == header:
-            print("Double header in file! Skipping this line")
-            continue
-        data = dict(zip(header, list(map(str.strip, line.split("\t")))))
-        maf_record = create_maf_record_from_maf(data, center_name, sequence_source)
-        maf_data.append(maf_record)
-        records_loaded += 1
+    with open(filename, "r") as data_file:
+        (header, raw_header_line) = get_file_header(filename)
+        for line in data_file.readlines():
+            if not is_valid_mutation_record_to_process(raw_header_line, header, line):
+                continue
+            data = map_data_values_to_header(header, line)
+            maf_record = create_maf_record_from_maf(data, center_name, sequence_source)
+            maf_data.append(maf_record)
+            records_loaded += 1
     data_file.close()
     print_data_loading_summary(filename, records_loaded, rejected_vars_by_varclass, rejected_vars_by_mutstatus, rejected_vars_by_inc_data, [])
     return maf_data
@@ -1387,6 +1415,7 @@ def print_data_loading_summary(filename, records_loaded, rejected_vars_by_varcla
         print("\tNumber of VCR data errors: %s" % (len(vcf_data_errors)))
 
 def write_standardized_mutation_file(maf_data, output_filename):
+    """ Writes standardized MAF data to output file. """
     output_file = open(output_filename, "w")
     output_file.write("\t".join(MAF_HEADER))
     for data in maf_data:
@@ -1394,7 +1423,7 @@ def write_standardized_mutation_file(maf_data, output_filename):
         output_file.write("\n" + "\t".join(formatted_data))
     output_file.write("\n")
     output_file.close()
-    print("Standardized MAF written to: %s" % (output_filename))
+    print("\nStandardized MAF written to: %s" % (output_filename))
 
 def generate_maf_from_input_data(input_directory, output_directory, extensions_list, center_name, sequence_source):
     print("\nLoading data from input directory: %s" % (input_directory))
@@ -1406,12 +1435,17 @@ def generate_maf_from_input_data(input_directory, output_directory, extensions_l
             if filename.endswith(ext) and not "normal" in filename:
                 extract_data = True
                 break
+        input_filename = os.path.join(input_directory, filename)
         if extract_data:
             output_filename = os.path.join(output_directory, filename + ".temp")
             if ".vcf" in filename:
-                maf_data = extract_vcf_data_from_file(os.path.join(input_directory, filename), center_name, sequence_source)
+                maf_data = extract_vcf_data_from_file(input_filename, center_name, sequence_source)
             else:
-                maf_data = extract_maf_data_from_file(os.path.join(input_directory, filename), center_name, sequence_source)
+                maf_data = extract_maf_data_from_file(input_filename, center_name, sequence_source)
+            # if no maf data is extracted from input file then do not create empty file
+            if not maf_data:
+                print("Data could not be extracted from input file: %s - skipping writing of output file..." % (input_filename))
+                continue
             write_standardized_mutation_file(maf_data, output_filename)
 
 def usage():
