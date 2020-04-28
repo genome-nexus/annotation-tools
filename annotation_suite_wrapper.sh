@@ -1,17 +1,17 @@
 #!/bin/bash
 
 # Copyright (c) 2020 Memorial Sloan Kettering Cancer Center
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in all
 # copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -128,7 +128,7 @@ function annotateMAF {
     input_file="$1"
     output_file=${ANNOTATED_SUB_DIR_NAME}/$(basename "${input_file}").annotated
     echo -e "\t[INFO] annotateMAF(), annotating MAF: ${input_file} --> ${output_file}"
-    java ${JAVA_SSL_ARGS} -jar ${GENOME_NEXUS_ANNOTATOR_JAR} --filename "${input_file}" --output-filename "${output_file}" --isoform-override ${GENOME_NEXUS_ANNOTATOR_ISOFORM} -r
+    java ${JAVA_SSL_ARGS} -jar ${GENOME_NEXUS_ANNOTATOR_JAR} --filename "${input_file}" --output-filename "${output_file}" --isoform-override ${GENOME_NEXUS_ANNOTATOR_ISOFORM} -p ${GENOME_NEXUS_ANNOTATOR_POST_SIZE} -r
     if [ $? -gt 0 ] ; then
         echo -e "\n[ERROR] annotateMAF(), error encountered while running the genome nexus annotation pipeline"
         exit 1
