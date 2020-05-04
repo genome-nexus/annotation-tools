@@ -1154,7 +1154,7 @@ def resolve_vcf_allele_depth_values(mapped_sample_format_data, vcf_alleles, vari
 
     # 12. For all other lines where number of depths is not equal to number of alleles, blank out the depths
     elif len(allele_depth_values) != len(vcf_alleles):
-        allele_depth_values = [""]*len(vcf_alleles)
+        allele_depth_values = [""] * len(vcf_alleles)
 
     ref_count = allele_depth_values[0]
     alt_count = allele_depth_values[variant_allele_idx]
@@ -1184,9 +1184,8 @@ def resolve_vcf_allele_depth_values(mapped_sample_format_data, vcf_alleles, vari
     try:
         depth = mapped_sample_format_data["DP"]
     except:
-        message = "DP could not be resolved for current record in VCF: %s" % (str(vcf_data))
+        message = "DP could not be resolved for current record in VCF: %s - using default value of empty string..." % (str(vcf_data))
         print_warning(message)
-        sys.exit(2)
 
     return (ref_count, alt_count, depth)
 
