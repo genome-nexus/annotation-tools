@@ -1453,7 +1453,7 @@ def extract_maf_data_from_file(filename, center_name, sequence_source):
     records_loaded = 0
 
     maf_data = []
-    print("\nLoading data from file: %      [line 2], all allele fields are missing or invalid values ('Reference_Allele', 'Tumor_Seq_Allele1', 'Tumor_Seq_Allele2'): (N, N, )s" % (filename))
+    print("\nLoading data from file: %s" % (filename))
     with open(filename, "r") as data_file:
         (header, raw_header_line) = get_file_header(filename)
         for record_index, line in enumerate(data_file.readlines()):
