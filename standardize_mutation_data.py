@@ -88,7 +88,6 @@ MAF_HEADER = [
     "gnomAD_SAS_AF"
 ]
 
-
 VCF_FIXED_HEADER_NON_CASE_IDS = [
     "CHROM",
     "POS",
@@ -224,6 +223,9 @@ VCF_DEFAULT_VARIANT_ALLELE_IDX = 1
 NULL_OR_MISSING_VALUES = set(["", "N/A", None, ".", "?"])
 NULL_OR_MISSING_VCF_VALUES = set(["", ".", "./."])
 
+# problematic files tracker
+PROBLEMATIC_FILES_REPORT = {}
+
 # ----------------------------------------------------------------
 
 def get_file_header(filename):
@@ -284,7 +286,6 @@ def resolve_tumor_seq_alleles(data, ref_allele):
     # the importer determines which tumor seq allele to use as the alt allele
     # so simply return the resolved values as they are
     return (tum_seq_allele1, tum_seq_allele2)
-
 
 def print_warning(message):
     print(message, file = ERROR_FILE)
@@ -736,7 +737,7 @@ def resolve_match_norm_seq_alleles(data, maf_data):
     maf_data["Match_Norm_Seq_Allele2"] = norm_allele2
     return maf_data
 
-def create_maf_record_from_maf(data, center_name, sequence_source):
+def create_maf_record_from_maf(filename, data, center_name, sequence_source):
     """ Creates a MAF record from a given input MAF. """
     maf_data = init_maf_record()
 
@@ -749,9 +750,10 @@ def create_maf_record_from_maf(data, center_name, sequence_source):
         maf_data["Tumor_Sample_Barcode"] = data[tumor_sample_barcode_col_name]
     except AttributeError:
         message = "[ERROR] create_maf_record_from_maf(), Error enountered while trying to identify the tumor sample barcode column to use from MAF. "
-        message += "MAF columnds found: %s" % (", ".join(data.keys()))
+        message += "MAF columns found: %s" % (", ".join(data.keys()))
+        PROBLEMATIC_FILES_REPORT[filename] = {"ERROR": [message]}
         print_warning(message)
-        sys.exit(2)
+        return None
 
     # set values for MAF fields
     maf_data["Matched_Norm_Sample_Barcode"] = resolve_match_normal_sample_barcode(data)
@@ -1306,9 +1308,6 @@ def create_maf_record_from_vcf(sample_id, center_name, sequence_source, vcf_data
     resolve_vcf_matched_normal_allele_data(vcf_data, maf_data, matched_normal_sample_id)
     return maf_data
 
-def is_valid_vcf_maf_record(maf_record):
-    return not ((maf_record["Reference_Allele"] == "N" or maf_record["Reference_Allele"] == "") and (maf_record["Tumor_Seq_Allele2"] == "" or maf_record["Tumor_Seq_Allele2"] == "N"))
-
 def get_vcf_file_header(filename):
     vcf_file_header = []
     raw_header_line = ""
@@ -1334,22 +1333,29 @@ def extract_vcf_data_from_file(filename, center_name, sequence_source):
     (sample_id, tumor_sample_data_col, matched_normal_sample_id) = get_vcf_sample_and_normal_ids(filename)
     is_germline_data = ("germline" in filename)
     maf_data = []
-    vcf_data_errors = []
     with open(filename, "r") as data_file:
         (vcf_file_header, raw_header_line) = get_vcf_file_header(filename)
-        for line in data_file.readlines():
+        for record_index, line in enumerate(data_file.readlines()):
             if not is_valid_mutation_record_to_process(raw_header_line, vcf_file_header, line):
                 continue
+            if is_malformed_record(filename, record_index, line, vcf_file_header):
+                return None
             # map vcf data values to columns in file header
             vcf_data = map_data_values_to_header(vcf_file_header, line)
             # do some additional processing on the VCF columns "INFO", "FORMAT", the identified tumor_sample_data_col, and the NORMAL column (if NORMAL is present)
             extract_vcf_format_info_data(vcf_data, tumor_sample_data_col, matched_normal_sample_id)
             maf_record = create_maf_record_from_vcf(sample_id, center_name, sequence_source, vcf_data, is_germline_data, matched_normal_sample_id, tumor_sample_data_col)
-            if not is_valid_vcf_maf_record(maf_record):
-                vcf_data_errors.append(vcf_data)
-            maf_data.append(maf_record)
 
-    print_data_loading_summary(filename, len(maf_data), rejected_vars_by_varclass, rejected_vars_by_mutstatus, rejected_vars_by_inc_data, vcf_data_errors)
+            # capture non-critical data issues as warnings (i.e., data issues that would prevent a successful annotation of single record)
+            capture_warnings_for_extracted_maf_record(filename, record_index, maf_record)
+
+            maf_data.append(maf_record)
+    # if file passes all checks but we could not extract any data from the file then report as critical error
+    if not maf_data:
+        message = "Data could not be extracted from file - output file will not be generated."
+        update_problematic_report_for_file(filename, "ERROR", message)
+    else:
+        print_data_loading_summary(filename, len(maf_data), rejected_vars_by_varclass, rejected_vars_by_mutstatus, rejected_vars_by_inc_data)
     return maf_data
 
 def is_valid_mutation_record_to_process(raw_header_line, header, line):
@@ -1358,7 +1364,6 @@ def is_valid_mutation_record_to_process(raw_header_line, header, line):
 
         A record is considered invalid if:
             - it is a duplicate of the header line
-            - the number of fields in the line does not match the number of fields in the header
             - the line begins with a '#'
             - the line is empty
     """
@@ -1368,10 +1373,6 @@ def is_valid_mutation_record_to_process(raw_header_line, header, line):
         return False
     if line.startswith("#"):
         return False
-    split_line = list(map(str.strip, line.split("\t")))
-    if len(split_line) != len(header):
-        print_warning("Encountered record in file where the number of fields in the line does not match the expected number of fields in the header: \n%s\n\n- exiting..." % (line))
-        sys.exit(2)
     return True
 
 def map_data_values_to_header(header, line):
@@ -1381,6 +1382,64 @@ def map_data_values_to_header(header, line):
     data = dict(zip(header, list(map(str.strip, line.split("\t")))))
     return data
 
+def is_malformed_record(filename, record_index, line, header):
+    """
+        Verify whether the number of fields in the line matches the number of fields in the header.
+    """
+    split_line = list(map(str.strip, line.split("\t")))
+    if len(split_line) != len(header):
+        message = "[line %s] Encountered record in file where the number of fields in the line does not match the expected number of fields in the header, skipping processing of file..." % (record_index + 1)
+        print_warning(message)
+        update_problematic_report_for_file(filename, "ERROR", message)
+        return True
+    return False
+
+def is_valid_chromosome(chromosome):
+    return (
+            (is_valid_integer(chromosome) and int(chromosome) > 0 and int(chromosome) <= 24) or
+            (chromosome.upper() in ["X", "Y", "MT"])
+        )
+
+def update_problematic_report_for_file(filename, problem_type, message):
+    # get current errors and warnings for given filename and update accordingly
+    datafile_errors_and_warnings = PROBLEMATIC_FILES_REPORT.get(filename, {})
+
+    # append warning/error message to appropriate list (either "ERROR" or "WARNING")
+    messages_for_problem_type = datafile_errors_and_warnings.get(problem_type, [])
+    messages_for_problem_type.append(message)
+
+    # update global "PROBLEMATIC_FILES_REPORT" with latest info
+    datafile_errors_and_warnings[problem_type] = messages_for_problem_type
+    PROBLEMATIC_FILES_REPORT[filename] = datafile_errors_and_warnings
+
+def capture_warnings_for_extracted_maf_record(filename, record_index, maf_record):
+    """
+        Adds warnings to 'PROBLEMATIC_FILES_REPORT' global.
+        These are non-critical issues encountered during processing.
+    """
+
+    # check chromosome value
+    if not is_valid_chromosome(maf_record["Chromosome"]):
+        message = "[line %s], invalid chromosome value encountered (%s)" % ((record_index + 1), maf_record["Chromosome"])
+        update_problematic_report_for_file(filename, "WARNING", message)
+
+    # check start/end positions are not empty
+    if is_missing_data_value(maf_record["Start_Position"]):
+        message = "[line %s], 'Start_Position' is missing" % ((record_index + 1))
+        update_problematic_report_for_file(filename, "WARNING", message)
+    if is_missing_data_value(maf_record["End_Position"]):
+        message = "[line %s], 'End_Position' is missing" % ((record_index + 1))
+        update_problematic_report_for_file(filename, "WARNING", message)
+
+    # check allele fields are not empty
+    if (
+        (is_missing_data_value(maf_record["Reference_Allele"]) or maf_record["Reference_Allele"] == "N") and
+        (is_missing_data_value(maf_record["Tumor_Seq_Allele1"]) or maf_record["Tumor_Seq_Allele1"] == "N") and
+        (is_missing_data_value(maf_record["Tumor_Seq_Allele2"]) or maf_record["Tumor_Seq_Allele2"] == "N")
+        ):
+        message = "[line %s], all allele fields are missing or invalid values ('Reference_Allele', 'Tumor_Seq_Allele1', 'Tumor_Seq_Allele2'): (%s, %s, %s)" % ((record_index + 1), maf_record["Reference_Allele"], maf_record["Tumor_Seq_Allele1"], maf_record["Tumor_Seq_Allele2"])
+        update_problematic_report_for_file(filename, "WARNING", message)
+
 def extract_maf_data_from_file(filename, center_name, sequence_source):
     rejected_vars_by_varclass = 0
     rejected_vars_by_mutstatus = 0
@@ -1388,21 +1447,35 @@ def extract_maf_data_from_file(filename, center_name, sequence_source):
     records_loaded = 0
 
     maf_data = []
-    print("\nLoading data from file: %s" % (filename))
+    print("\nLoading data from file: %      [line 2], all allele fields are missing or invalid values ('Reference_Allele', 'Tumor_Seq_Allele1', 'Tumor_Seq_Allele2'): (N, N, )s" % (filename))
     with open(filename, "r") as data_file:
         (header, raw_header_line) = get_file_header(filename)
-        for line in data_file.readlines():
+        for record_index, line in enumerate(data_file.readlines()):
             if not is_valid_mutation_record_to_process(raw_header_line, header, line):
                 continue
+            if is_malformed_record(filename, record_index, line, header):
+                return None
             data = map_data_values_to_header(header, line)
-            maf_record = create_maf_record_from_maf(data, center_name, sequence_source)
+            maf_record = create_maf_record_from_maf(filename, data, center_name, sequence_source)
+            if not maf_record:
+                print_warning("Encountered a critical error, see report at end of standardize_mutation_data.py run - skipping processing of the rest of the mutation data file: %s" % (filename))
+                return None
+
+            # capture non-critical data issues as warnings (i.e., data issues that would prevent a successful annotation of single record)
+            capture_warnings_for_extracted_maf_record(filename, record_index, maf_record)
+
             maf_data.append(maf_record)
             records_loaded += 1
-    data_file.close()
-    print_data_loading_summary(filename, records_loaded, rejected_vars_by_varclass, rejected_vars_by_mutstatus, rejected_vars_by_inc_data, [])
+
+    # if file passes all checks but we could not extract any data from the file then report as critical error
+    if not maf_data:
+        message = "Data could not be extracted from file - output file will not be generated."
+        update_problematic_report_for_file(filename, "ERROR", message)
+    else:
+        print_data_loading_summary(filename, records_loaded, rejected_vars_by_varclass, rejected_vars_by_mutstatus, rejected_vars_by_inc_data)
     return maf_data
 
-def print_data_loading_summary(filename, records_loaded, rejected_vars_by_varclass, rejected_vars_by_mutstatus, rejected_vars_by_inc_data, vcf_data_errors):
+def print_data_loading_summary(filename, records_loaded, rejected_vars_by_varclass, rejected_vars_by_mutstatus, rejected_vars_by_inc_data):
     print("\tTotal records loaded %s " % (records_loaded))
     if rejected_vars_by_varclass > 0:
         print("\tTotal records filtered by variant classification: %s" % (rejected_vars_by_varclass))
@@ -1410,8 +1483,6 @@ def print_data_loading_summary(filename, records_loaded, rejected_vars_by_varcla
         print("\tTotal records rejected due to LOH or Wildtype Mutation Status: %s" % (rejected_vars_by_mutstatus))
     if rejected_vars_by_inc_data > 0:
         print("\tTotal records rejected due to incomplete allele data: %s" % (rejected_vars_by_inc_data))
-    if len(vcf_data_errors) > 0:
-        print("\tNumber of VCR data errors: %s" % (len(vcf_data_errors)))
 
 def write_standardized_mutation_file(maf_data, output_filename):
     """ Writes standardized MAF data to output file. """
@@ -1423,6 +1494,23 @@ def write_standardized_mutation_file(maf_data, output_filename):
     output_file.write("\n")
     output_file.close()
     print("\nStandardized MAF written to: %s" % (output_filename))
+
+def print_problematic_files_report():
+    """ Reports errors and warnings encountered while processing input files. """
+    if not PROBLEMATIC_FILES_REPORT:
+        print("No errors encountered during standardize_mutation_data.py run...")
+        return
+
+    print("\n ## ERRORS AND WARNINGS ENCOUNTERED ##\nEncountered %s files with errors and/or warnings during standardize_mutation_data.py run...\n" % (len(PROBLEMATIC_FILES_REPORT.keys())))
+    print("- Warnings are errors which are specific to record(s) within a mutation data file. Causes of such warning messages may be due to empty data values for certain key fields like allele depth fields, for example. The warning message will detail the field that the issue was encountered for.")
+    print("- Critical errors arise if data could not be loaded from a mutation data file, such as with data files containing a header but no records or a file where all of the lines are commented out.\n")
+    for filename, datafile_errors_and_warnings in PROBLEMATIC_FILES_REPORT.items():
+        print("\n%s report:" % (filename))
+        for problem_type, messages in sorted(datafile_errors_and_warnings.items()):
+            print("\t%s" % (problem_type))
+            for m in messages:
+                print("\t\t%s" % (m))
+        print("\n")
 
 def generate_maf_from_input_data(input_directory, output_directory, extensions_list, center_name, sequence_source):
     print("\nLoading data from input directory: %s" % (input_directory))
@@ -1441,11 +1529,9 @@ def generate_maf_from_input_data(input_directory, output_directory, extensions_l
                 maf_data = extract_vcf_data_from_file(input_filename, center_name, sequence_source)
             else:
                 maf_data = extract_maf_data_from_file(input_filename, center_name, sequence_source)
-            # if no maf data is extracted from input file then do not create empty file
-            if not maf_data:
-                print("Data could not be extracted from input file: %s - skipping writing of output file..." % (input_filename))
-                continue
-            write_standardized_mutation_file(maf_data, output_filename)
+            # only generate output file if data successfully extracted from input file
+            if maf_data:
+                write_standardized_mutation_file(maf_data, output_filename)
 
 def usage():
     print("python3 standardize_mutation_data.py --input-directory [path/to/input/directory] --output-directory [path/to/output/directory] --center [default name for center] --sequence-source [WGS | WXS] --extensions [comma-separated list of extensions]")
@@ -1477,6 +1563,7 @@ def main():
 
     extensions_list = list(map(str.strip, extensions.split(",")))
     generate_maf_from_input_data(input_directory, output_directory, extensions_list, center_name, sequence_source)
+    print_problematic_files_report()
 
 if __name__ == "__main__":
     main()
