@@ -1231,12 +1231,18 @@ def resolve_vcf_matched_normal_allele_data(vcf_data, maf_data, matched_normal_sa
         normal_sample_format_data = vcf_data["MAPPED_NORMAL_FORMAT_DATA"]
         if "GT" in normal_sample_format_data.keys() and not is_missing_vcf_data_value(normal_sample_format_data["GT"]):
             normal_sample_genotype_info = re.split("[\/|]", normal_sample_format_data["GT"])
-            if len(normal_sample_genotype_info) == 1:
-                maf_data["Match_Norm_Seq_Allele1"] = vcf_alleles[int(normal_sample_genotype_info[0])]
-                maf_data["Match_Norm_Seq_Allele2"] = vcf_alleles[int(normal_sample_genotype_info[0])]
+            match_norm_seq_allele1 = ""
+            match_norm_seq_allele2 = ""
+            if len(normal_sample_genotype_info) == 1 and is_valid_integer(normal_sample_genotype_info[0]):
+                match_norm_seq_allele1 = vcf_alleles[int(normal_sample_genotype_info[0])]
+                match_norm_seq_allele2 = vcf_alleles[int(normal_sample_genotype_info[0])]
             else:
-                maf_data["Match_Norm_Seq_Allele1"] = vcf_alleles[int(normal_sample_genotype_info[0])]
-                maf_data["Match_Norm_Seq_Allele2"] = vcf_alleles[int(normal_sample_genotype_info[1])]
+                if is_valid_integer(normal_sample_genotype_info[0]):
+                    match_norm_seq_allele1 = vcf_alleles[int(normal_sample_genotype_info[0])]
+                if is_valid_integer(normal_sample_genotype_info[1]):
+                    match_norm_seq_allele2 = vcf_alleles[int(normal_sample_genotype_info[1])]
+            maf_data["Match_Norm_Seq_Allele1"] = match_norm_seq_allele1
+            maf_data["Match_Norm_Seq_Allele2"] = match_norm_seq_allele2
     return maf_data
 
 def resolve_vcf_variant_allele_data(vcf_data, maf_data):
