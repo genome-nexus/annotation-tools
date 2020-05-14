@@ -265,13 +265,15 @@ def resolve_tumor_seq_alleles(data, ref_allele):
     if MUTATED_TO_ALLELE_COLUMN in data.keys():
         return data[MUTATED_TO_ALLELE_COLUMN]
 
-    for i,column in enumerate(TUMOR_SEQ_ALLELE1_COLUMNS):
+    for column in TUMOR_SEQ_ALLELE1_COLUMNS:
         if column in data.keys():
             tum_seq_allele1 = process_datum(data[column])
-            tum_seq_allele2 = process_datum(data[TUMOR_SEQ_ALLELE2_COLUMNS[i]])
-
-            # if at least one is not empty then exit for-loop
-            if tum_seq_allele1 != "" or tum_seq_allele2 != "":
+            if tum_seq_allele1 != "":
+                break
+    for column in TUMOR_SEQ_ALLELE2_COLUMNS:
+        if column in data.keys():
+            tum_seq_allele2 = process_datum(data[column])
+            if tum_seq_allele2 != "":
                 break
 
     # if both tumor seq alleles are empty then there might be something wrong with the data
@@ -487,6 +489,7 @@ def resolve_variant_allele_data(data, maf_data):
     """
     ref_allele = resolve_ref_allele(data)
     (tumor_seq_allele1, tumor_seq_allele2) = resolve_tumor_seq_alleles(data, ref_allele)
+
     # set the general tumor_seq_allele as the first non-ref allele encountered
     # this will be used to resolve the variant classification and variant type
     # if there are no tumor alleles that do not match the ref allele then use empty string
