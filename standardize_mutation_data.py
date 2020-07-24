@@ -26,6 +26,7 @@ import os
 import optparse
 import re
 import json
+from chardet import detect
 
 # ---------------------------- GLOBALS ----------------------------
 
@@ -232,13 +233,12 @@ def get_file_header(filename):
     """ Returns the file header as a list. """
     header = []
     raw_header_line = ""
-    with open(filename, "r") as data_file:
-        for line in data_file.readlines():
-            if line.startswith("#"):
-                continue
-            raw_header_line = line
-            header = list(map(str.strip, line.split("\t")))
-            break
+    for line in extract_file_data(filename):
+        if line.startswith("#"):
+            continue
+        raw_header_line = line
+        header = list(map(str.strip, line.split("\t")))
+        break
     if not header:
         print("Could not extract header from mutation data file: %s - Exiting..." % (filename))
         sys.exit(2)
@@ -785,6 +785,31 @@ def create_maf_record_from_maf(filename, data, center_name, sequence_source):
     resolve_match_norm_seq_alleles(data, maf_data)
     return maf_data
 
+def detect_file_encoding(filename):
+    """
+        Reads the first million bytes of a file 
+        to detect the type of encoding.
+    """
+    with open(filename, "rb") as data_file:
+        encoding = detect(data_file.read(1000000))
+        if encoding["encoding"] != "ascii":
+            print("[WARNING] detect_file_encoding(), Non-ASCII encoding detected in file %s, encoding type detected: %s - non-ASCII characters will be ignored and removed" % (filename, encoding["encoding"]))
+        return encoding["encoding"]
+
+
+def extract_file_data(filename):
+    """
+        Reads in file data with the appropriate encoding
+        type and returns file data as ascii.
+    """
+    encoding_type = detect_file_encoding(filename)
+    with open(filename, encoding = encoding_type) as data_file:
+        filedata = []
+        for line in data_file.readlines():
+            # TODO: report on a line-by-line basis if there are non-ascii characters encountered
+            filedata.append(line.encode("ascii", "ignore").decode("ascii"))
+        return filedata
+
 def get_vcf_sample_and_normal_ids(filename):
     """
         Returns the sample name, tumor sample barcode column,
@@ -803,28 +828,28 @@ def get_vcf_sample_and_normal_ids(filename):
         "NORMAL" sample data.
     """
 
-    with open(filename, "r") as vcf_file:
-        vcf_file_header = []
-        for line in vcf_file.readlines():
-            if line.startswith("#CHROM"):
-                vcf_file_header = list(map(str.strip, line.replace("#", "").split("\t")))
-                break
-        # get the case id columns based on which columns in the header are not part of the fixed VCF header
-        case_ids_cols = [col for col in vcf_file_header if col not in VCF_FIXED_HEADER_NON_CASE_IDS]
-        if len(case_ids_cols) == 1:
-            tumor_sample_data_col_name = case_ids_cols[0]
-            matched_normal_sample_id = "NORMAL"
-        elif len(case_ids_cols) == 2:
-            tumor_sample_data_col_name = case_ids_cols[0]
-            matched_normal_sample_id = case_ids_cols[1]
-        else:
-            tumor_sample_data_col_name = "TUMOR"
-            matched_normal_sample_id = "NORMAL"
 
-        if tumor_sample_data_col_name == "TUMOR":
-            tumor_sample_id = os.path.basename(filename).replace(".vcf", "")
-        else:
-            tumor_sample_id = tumor_sample_data_col_name
+    vcf_file_header = []
+    for line in extract_file_data(filename):
+        if line.startswith("#CHROM"):
+            vcf_file_header = list(map(str.strip, line.replace("#", "").split("\t")))
+            break
+    # get the case id columns based on which columns in the header are not part of the fixed VCF header
+    case_ids_cols = [col for col in vcf_file_header if col not in VCF_FIXED_HEADER_NON_CASE_IDS]
+    if len(case_ids_cols) == 1:
+        tumor_sample_data_col_name = case_ids_cols[0]
+        matched_normal_sample_id = "NORMAL"
+    elif len(case_ids_cols) == 2:
+        tumor_sample_data_col_name = case_ids_cols[0]
+        matched_normal_sample_id = case_ids_cols[1]
+    else:
+        tumor_sample_data_col_name = "TUMOR"
+        matched_normal_sample_id = "NORMAL"
+
+    if tumor_sample_data_col_name == "TUMOR":
+        tumor_sample_id = os.path.basename(filename).replace(".vcf", "")
+    else:
+        tumor_sample_id = tumor_sample_data_col_name
     return (tumor_sample_id, tumor_sample_data_col_name, matched_normal_sample_id)
 
 def resolve_vcf_allele(vcf_data):
@@ -1320,12 +1345,11 @@ def create_maf_record_from_vcf(sample_id, center_name, sequence_source, vcf_data
 def get_vcf_file_header(filename):
     vcf_file_header = []
     raw_header_line = ""
-    with open(filename, "r") as vcf_file:
-        for line in vcf_file.readlines():
-            if line.startswith("#CHROM"):
-                raw_header_line = line
-                vcf_file_header = list(map(str.strip, line.replace("#", "").split("\t")))
-                break
+    for line in extract_file_data(filename):
+        if line.startswith("#CHROM"):
+            raw_header_line = line
+            vcf_file_header = list(map(str.strip, line.replace("#", "").split("\t")))
+            break
     if not vcf_file_header:
         print("Could not extract VCF header from file: %s - Exiting..." % (filename))
         sys.exit(2)
@@ -1342,23 +1366,22 @@ def extract_vcf_data_from_file(filename, center_name, sequence_source):
     (sample_id, tumor_sample_data_col, matched_normal_sample_id) = get_vcf_sample_and_normal_ids(filename)
     is_germline_data = ("germline" in filename)
     maf_data = []
-    with open(filename, "r") as data_file:
-        (vcf_file_header, raw_header_line) = get_vcf_file_header(filename)
-        for record_index, line in enumerate(data_file.readlines()):
-            if not is_valid_mutation_record_to_process(raw_header_line, vcf_file_header, line):
-                continue
-            if is_malformed_record(filename, record_index, line, vcf_file_header):
-                return None
-            # map vcf data values to columns in file header
-            vcf_data = map_data_values_to_header(vcf_file_header, line)
-            # do some additional processing on the VCF columns "INFO", "FORMAT", the identified tumor_sample_data_col, and the NORMAL column (if NORMAL is present)
-            extract_vcf_format_info_data(vcf_data, tumor_sample_data_col, matched_normal_sample_id)
-            maf_record = create_maf_record_from_vcf(sample_id, center_name, sequence_source, vcf_data, is_germline_data, matched_normal_sample_id, tumor_sample_data_col)
+    (vcf_file_header, raw_header_line) = get_vcf_file_header(filename)
+    for record_index, line in enumerate(extract_file_data(filename)):
+        if not is_valid_mutation_record_to_process(raw_header_line, vcf_file_header, line):
+            continue
+        if is_malformed_record(filename, record_index, line, vcf_file_header):
+            return None
+        # map vcf data values to columns in file header
+        vcf_data = map_data_values_to_header(vcf_file_header, line)
+        # do some additional processing on the VCF columns "INFO", "FORMAT", the identified tumor_sample_data_col, and the NORMAL column (if NORMAL is present)
+        extract_vcf_format_info_data(vcf_data, tumor_sample_data_col, matched_normal_sample_id)
+        maf_record = create_maf_record_from_vcf(sample_id, center_name, sequence_source, vcf_data, is_germline_data, matched_normal_sample_id, tumor_sample_data_col)
 
-            # capture non-critical data issues as warnings (i.e., data issues that would prevent a successful annotation of single record)
-            capture_warnings_for_extracted_maf_record(filename, record_index, maf_record)
+        # capture non-critical data issues as warnings (i.e., data issues that would prevent a successful annotation of single record)
+        capture_warnings_for_extracted_maf_record(filename, record_index, maf_record)
 
-            maf_data.append(maf_record)
+        maf_data.append(maf_record)
     # if file passes all checks but we could not extract any data from the file then report as critical error
     if not maf_data:
         message = "Data could not be extracted from file - output file will not be generated."
@@ -1457,24 +1480,23 @@ def extract_maf_data_from_file(filename, center_name, sequence_source):
 
     maf_data = []
     print("\nLoading data from file: %s" % (filename))
-    with open(filename, "r") as data_file:
-        (header, raw_header_line) = get_file_header(filename)
-        for record_index, line in enumerate(data_file.readlines()):
-            if not is_valid_mutation_record_to_process(raw_header_line, header, line):
-                continue
-            if is_malformed_record(filename, record_index, line, header):
-                return None
-            data = map_data_values_to_header(header, line)
-            maf_record = create_maf_record_from_maf(filename, data, center_name, sequence_source)
-            if not maf_record:
-                print_warning("Encountered a critical error, see report at end of standardize_mutation_data.py run - skipping processing of the rest of the mutation data file: %s" % (filename))
-                return None
+    (header, raw_header_line) = get_file_header(filename)
+    for record_index, line in enumerate(extract_file_data(filename)):
+        if not is_valid_mutation_record_to_process(raw_header_line, header, line):
+            continue
+        if is_malformed_record(filename, record_index, line, header):
+            return None
+        data = map_data_values_to_header(header, line)
+        maf_record = create_maf_record_from_maf(filename, data, center_name, sequence_source)
+        if not maf_record:
+            print_warning("Encountered a critical error, see report at end of standardize_mutation_data.py run - skipping processing of the rest of the mutation data file: %s" % (filename))
+            return None
 
-            # capture non-critical data issues as warnings (i.e., data issues that would prevent a successful annotation of single record)
-            capture_warnings_for_extracted_maf_record(filename, record_index, maf_record)
+        # capture non-critical data issues as warnings (i.e., data issues that would prevent a successful annotation of single record)
+        capture_warnings_for_extracted_maf_record(filename, record_index, maf_record)
 
-            maf_data.append(maf_record)
-            records_loaded += 1
+        maf_data.append(maf_record)
+        records_loaded += 1
 
     # if file passes all checks but we could not extract any data from the file then report as critical error
     if not maf_data:
