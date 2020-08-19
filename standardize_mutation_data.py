@@ -192,6 +192,7 @@ CGI_VARIANT_CLASS_MAP = {
 # KEY COLUMN NAMES
 TUMOR_SEQ_ALLELE1_COLUMNS = ["Tumor_Seq_Allele1", "TumorSeq_Allele1"]
 TUMOR_SEQ_ALLELE2_COLUMNS = ["Tumor_Seq_Allele2", "TumorSeq_Allele2"]
+MUTATED_FROM_ALLELE_COLUMN = "mutated_from_allele"
 MUTATED_TO_ALLELE_COLUMN = "mutated_to_allele"
 VARIANT_TYPE_COLUMNS = ["Variant_Type", "VariantType", "mut_type", "mutation_type"]
 VARIANT_CLASSIFICATION_COLUMNS = ["Variant_Classification", "class", "Transcript architecture around variant"]
@@ -205,7 +206,7 @@ VERIFICATION_STATUS_COLUMNS = ["Verification_Status", "verification_status"]
 VALIDATION_METHOD_COLUMNS = ["Validation_Method", "verification_platform"]
 MATCHED_NORMAL_SEQ_ALLELE1_COLUMNS = ["Match_Norm_Seq_Allele1", "mutated_to_allele"]
 MATCHED_NORMAL_SEQ_ALLELE2_COLUMNS = ["Match_Norm_Seq_Allele2", "control_genotype"]
-TUMOR_SAMPLE_BARCODE_COLUMNS = ["Tumor_Sample_Barcode", "analyzed_sample_id"]
+TUMOR_SAMPLE_BARCODE_COLUMNS = ["Tumor_Sample_Barcode", "analyzed_sample_id", "submitted_sample_id"]
 
 # VCF KEYS FOR RESOLVING WHICH VCF PIPIELINE WAS USED
 VCF_STRELKA_KEY_COLUMNS = ["AU", "CU", "GU", "TU"]
@@ -263,7 +264,11 @@ def resolve_tumor_seq_alleles(data, ref_allele):
     tum_seq_allele2 = ""
 
     if MUTATED_TO_ALLELE_COLUMN in data.keys():
-        return data[MUTATED_TO_ALLELE_COLUMN]
+    	# use ref allele for tumor seq allele 1 if "mutated_from_allele" not present
+    	# but "mutated_to_allele" is present
+    	tum_seq_allele1 = data.get(MUTATED_FROM_ALLELE_COLUMN, ref_allele)
+    	tum_seq_allele2 = data[MUTATED_TO_ALLELE_COLUMN]
+    	return (tum_seq_allele1, tum_seq_allele2)
 
     for column in TUMOR_SEQ_ALLELE1_COLUMNS:
         if column in data.keys():
