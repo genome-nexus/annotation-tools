@@ -192,6 +192,7 @@ CGI_VARIANT_CLASS_MAP = {
 # KEY COLUMN NAMES
 TUMOR_SEQ_ALLELE1_COLUMNS = ["Tumor_Seq_Allele1", "TumorSeq_Allele1"]
 TUMOR_SEQ_ALLELE2_COLUMNS = ["Tumor_Seq_Allele2", "TumorSeq_Allele2"]
+MUTATED_FROM_ALLELE_COLUMN = "mutated_from_allele"
 MUTATED_TO_ALLELE_COLUMN = "mutated_to_allele"
 VARIANT_TYPE_COLUMNS = ["Variant_Type", "VariantType", "mut_type", "mutation_type"]
 VARIANT_CLASSIFICATION_COLUMNS = ["Variant_Classification", "class", "Transcript architecture around variant"]
@@ -205,7 +206,7 @@ VERIFICATION_STATUS_COLUMNS = ["Verification_Status", "verification_status"]
 VALIDATION_METHOD_COLUMNS = ["Validation_Method", "verification_platform"]
 MATCHED_NORMAL_SEQ_ALLELE1_COLUMNS = ["Match_Norm_Seq_Allele1", "mutated_to_allele"]
 MATCHED_NORMAL_SEQ_ALLELE2_COLUMNS = ["Match_Norm_Seq_Allele2", "control_genotype"]
-TUMOR_SAMPLE_BARCODE_COLUMNS = ["Tumor_Sample_Barcode", "analyzed_sample_id"]
+TUMOR_SAMPLE_BARCODE_COLUMNS = ["Tumor_Sample_Barcode", "analyzed_sample_id", "submitted_sample_id"]
 
 # VCF KEYS FOR RESOLVING WHICH VCF PIPIELINE WAS USED
 VCF_STRELKA_KEY_COLUMNS = ["AU", "CU", "GU", "TU"]
@@ -263,7 +264,11 @@ def resolve_tumor_seq_alleles(data, ref_allele):
     tum_seq_allele2 = ""
 
     if MUTATED_TO_ALLELE_COLUMN in data.keys():
-        return data[MUTATED_TO_ALLELE_COLUMN]
+    	# use ref allele for tumor seq allele 1 if "mutated_from_allele" not present
+    	# but "mutated_to_allele" is present
+    	tum_seq_allele1 = data.get(MUTATED_FROM_ALLELE_COLUMN, ref_allele)
+    	tum_seq_allele2 = data[MUTATED_TO_ALLELE_COLUMN]
+    	return (tum_seq_allele1, tum_seq_allele2)
 
     for column in TUMOR_SEQ_ALLELE1_COLUMNS:
         if column in data.keys():
@@ -280,8 +285,10 @@ def resolve_tumor_seq_alleles(data, ref_allele):
     if tum_seq_allele1 == "" and tum_seq_allele2 == "":
         return ("", "")
 
-    # if tum_seq_allele1 is empty after our attempt to resolve it
-    # then set it to the reference allele
+    # resolve tumor seq allele 1 from the tumor genotype column if it still has not been resolved
+    if TUMOR_GENOTYPE_COLUMN in data.keys() and tum_seq_allele1 == "":
+        tum_seq_allele1 = re.split("[\/|]", data[TUMOR_GENOTYPE_COLUMN])[0]
+    # if tumor seq allele 1 is still empty then set it to the reference allele by default
     if tum_seq_allele1 == "":
         tum_seq_allele1 = ref_allele
 
@@ -521,17 +528,10 @@ def resolve_variant_allele_data(data, maf_data):
     maf_data["Variant_Classification"] = variant_class
     maf_data["Variant_Type"] = variant_type
     maf_data["Reference_Allele"] = ref_allele
-    maf_data["Tumor_Seq_Allele2"] = tumor_seq_allele1
+    maf_data["Tumor_Seq_Allele1"] = tumor_seq_allele1
     maf_data["Tumor_Seq_Allele2"] = tumor_seq_allele2
     maf_data["Start_Position"] = start_pos
     maf_data["End_Position"] = end_pos
-
-    # resolve tumor seq allele 1 - default is set as ref allele
-    maf_data["Tumor_Seq_Allele1"] = ref_allele
-    if TUMOR_GENOTYPE_COLUMN in data.keys():
-        tum_seq_allele1 = re.split("[\/|]", data[TUMOR_GENOTYPE_COLUMN])[0]
-        if tum_seq_allele1 != "":
-            maf_data["Tumor_Seq_Allele1"] = tum_seq_allele1
 
     return maf_data
 
@@ -787,7 +787,7 @@ def create_maf_record_from_maf(filename, data, center_name, sequence_source):
 
 def detect_file_encoding(filename):
     """
-        Reads the first million bytes of a file 
+        Reads the first million bytes of a file
         to detect the type of encoding.
     """
     with open(filename, "rb") as data_file:
