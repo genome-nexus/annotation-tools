@@ -285,8 +285,10 @@ def resolve_tumor_seq_alleles(data, ref_allele):
     if tum_seq_allele1 == "" and tum_seq_allele2 == "":
         return ("", "")
 
-    # if tum_seq_allele1 is empty after our attempt to resolve it
-    # then set it to the reference allele
+    # resolve tumor seq allele 1 from the tumor genotype column if it still has not been resolved
+    if TUMOR_GENOTYPE_COLUMN in data.keys() and tum_seq_allele1 == "":
+        tum_seq_allele1 = re.split("[\/|]", data[TUMOR_GENOTYPE_COLUMN])[0]
+    # if tumor seq allele 1 is still empty then set it to the reference allele by default
     if tum_seq_allele1 == "":
         tum_seq_allele1 = ref_allele
 
@@ -526,17 +528,10 @@ def resolve_variant_allele_data(data, maf_data):
     maf_data["Variant_Classification"] = variant_class
     maf_data["Variant_Type"] = variant_type
     maf_data["Reference_Allele"] = ref_allele
-    maf_data["Tumor_Seq_Allele2"] = tumor_seq_allele1
+    maf_data["Tumor_Seq_Allele1"] = tumor_seq_allele1
     maf_data["Tumor_Seq_Allele2"] = tumor_seq_allele2
     maf_data["Start_Position"] = start_pos
     maf_data["End_Position"] = end_pos
-
-    # resolve tumor seq allele 1 - default is set as ref allele
-    maf_data["Tumor_Seq_Allele1"] = ref_allele
-    if TUMOR_GENOTYPE_COLUMN in data.keys():
-        tum_seq_allele1 = re.split("[\/|]", data[TUMOR_GENOTYPE_COLUMN])[0]
-        if tum_seq_allele1 != "":
-            maf_data["Tumor_Seq_Allele1"] = tum_seq_allele1
 
     return maf_data
 
@@ -792,7 +787,7 @@ def create_maf_record_from_maf(filename, data, center_name, sequence_source):
 
 def detect_file_encoding(filename):
     """
-        Reads the first million bytes of a file 
+        Reads the first million bytes of a file
         to detect the type of encoding.
     """
     with open(filename, "rb") as data_file:
