@@ -1217,6 +1217,18 @@ def resolve_vcf_allele_depth_values(mapped_sample_format_data, vcf_alleles, vari
         message = "DP could not be resolved for current record in VCF: %s - using default value of empty string..." % (str(vcf_data))
         print_warning(message)
 
+    # if depth has been resolved but not ref_count, alt_count then calculate the counts
+    # if allele frequency vcf field "AF" exists
+    if (
+        not is_missing_vcf_data_value(depth) and not is_missing_vcf_data_value(mapped_sample_format_data["AF"])
+        and (is_missing_vcf_data_value(ref_count) or is_missing_vcf_data_value(alt_count))
+        ):
+        # check if ref count or alt count are still missing but AF VCF field is available
+        if is_missing_vcf_data_value(ref_count):
+            ref_count = str(round(float(depth) * float(mapped_sample_format_data["AF"])))
+        if is_missing_vcf_data_value(alt_count) and not is_missing_vcf_data_value(ref_count):
+            alt_count = str(round(float(depth) - float(ref_count)))
+
     return (ref_count, alt_count, depth)
 
 
