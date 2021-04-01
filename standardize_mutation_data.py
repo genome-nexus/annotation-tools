@@ -288,9 +288,6 @@ def resolve_tumor_seq_alleles(data, ref_allele):
     # resolve tumor seq allele 1 from the tumor genotype column if it still has not been resolved
     if TUMOR_GENOTYPE_COLUMN in data.keys() and tum_seq_allele1 == "":
         tum_seq_allele1 = re.split("[\/|]", data[TUMOR_GENOTYPE_COLUMN])[0]
-    # if tumor seq allele 1 is still empty then set it to the reference allele by default
-    if tum_seq_allele1 == "":
-        tum_seq_allele1 = ref_allele
 
     # the importer determines which tumor seq allele to use as the alt allele
     # so simply return the resolved values as they are
@@ -501,19 +498,30 @@ def resolve_variant_allele_data(data, maf_data):
     # this will be used to resolve the variant classification and variant type
     # if there are no tumor alleles that do not match the ref allele then use empty string
     # in the event that this happens then there might be something wrong with the data itself
-    try:
-        tumor_seq_allele = [allele for allele in [tumor_seq_allele1, tumor_seq_allele2] if allele != ref_allele][0]
-    except:
-        tumor_seq_allele = ""
+    tumor_seq_allele = ""
+    for allele in [tumor_seq_allele1, tumor_seq_allele2]:
+        if allele != "" and allele != ref_allele:
+            tumor_seq_allele = allele
+            break
 
+    # resolve start and end positions
+    start_pos = resolve_start_position(data)
+
+    # if the alleles share a common prefix then remove and adjust the start position accordingly
+    if not is_missing_data_value(ref_allele) and not is_missing_data_value(tumor_seq_allele) and not is_missing_data_value(start_pos):
+        common_prefix = os.path.commonprefix([ref_allele, tumor_seq_allele])
+        if common_prefix:
+            start_pos = str(int(start_pos) + len(common_prefix))
+            ref_allele = ref_allele[len(common_prefix):]
+            tumor_seq_allele = tumor_seq_allele[len(common_prefix):]
+            if not is_missing_data_value(tumor_seq_allele1):
+                tumor_seq_allele1 = tumor_seq_allele1[len(common_prefix):]
+            if not is_missing_data_value(tumor_seq_allele2):
+                tumor_seq_allele2 = tumor_seq_allele2[len(common_prefix):]
+
+    # ref and tumor seq allele might have been updated to remove common prefixes
+    # attempt to resolve the variant type based on the potentially updated allele strings
     variant_type = resolve_variant_type(data, ref_allele, tumor_seq_allele)
-
-    # fix ref allele and tum seq allele for INS or DEL variant types
-    if variant_type == "INS":
-        ref_allele = "-"
-    elif variant_type == "DEL":
-        tumor_seq_allele = "-"
-
     variant_class = resolve_variant_classification(data, variant_type, ref_allele, tumor_seq_allele)
     # fix variant type just in case it was missed before
     if variant_class.endswith("INS") and variant_type != "INS":
@@ -521,8 +529,12 @@ def resolve_variant_allele_data(data, maf_data):
     elif variant_class.endswith("DEL") and variant_type != "DEL":
         variant_type = "DEL"
 
-    # resolve start and end positions
-    start_pos = resolve_start_position(data)
+    # fix ref allele and tum seq allele for INS or DEL variant types
+    if variant_type == "INS" and len(ref_allele) == 0:
+        ref_allele = "-"
+    elif variant_type == "DEL" and len(tumor_seq_allele) == 0:
+        tumor_seq_allele = "-"
+
     end_pos = resolve_end_position(data, start_pos, variant_type, ref_allele)
 
     maf_data["Variant_Classification"] = variant_class
@@ -1216,6 +1228,18 @@ def resolve_vcf_allele_depth_values(mapped_sample_format_data, vcf_alleles, vari
     except:
         message = "DP could not be resolved for current record in VCF: %s - using default value of empty string..." % (str(vcf_data))
         print_warning(message)
+
+    # if depth has been resolved but not ref_count, alt_count then calculate the counts
+    # if allele frequency vcf field "AF" exists
+    if (
+        not is_missing_vcf_data_value(depth) and ("AF" in mapped_sample_format_data and not is_missing_vcf_data_value(mapped_sample_format_data["AF"]))
+        and (is_missing_vcf_data_value(ref_count) or is_missing_vcf_data_value(alt_count))
+        ):
+        # check if ref count or alt count are still missing but AF VCF field is available
+        if is_missing_vcf_data_value(ref_count):
+            ref_count = str(round(float(depth) * float(mapped_sample_format_data["AF"])))
+        if is_missing_vcf_data_value(alt_count) and not is_missing_vcf_data_value(ref_count):
+            alt_count = str(round(float(depth) - float(ref_count)))
 
     return (ref_count, alt_count, depth)
 
