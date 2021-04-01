@@ -1232,7 +1232,7 @@ def resolve_vcf_allele_depth_values(mapped_sample_format_data, vcf_alleles, vari
     # if depth has been resolved but not ref_count, alt_count then calculate the counts
     # if allele frequency vcf field "AF" exists
     if (
-        not is_missing_vcf_data_value(depth) and not is_missing_vcf_data_value(mapped_sample_format_data["AF"])
+        not is_missing_vcf_data_value(depth) and ("AF" in mapped_sample_format_data and not is_missing_vcf_data_value(mapped_sample_format_data["AF"]))
         and (is_missing_vcf_data_value(ref_count) or is_missing_vcf_data_value(alt_count))
         ):
         # check if ref count or alt count are still missing but AF VCF field is available
