@@ -192,6 +192,7 @@ CGI_VARIANT_CLASS_MAP = {
 # KEY COLUMN NAMES
 TUMOR_SEQ_ALLELE1_COLUMNS = ["Tumor_Seq_Allele1", "TumorSeq_Allele1"]
 TUMOR_SEQ_ALLELE2_COLUMNS = ["Tumor_Seq_Allele2", "TumorSeq_Allele2"]
+MUTATED_FROM_ALLELE_COLUMN = "mutated_from_allele"
 MUTATED_TO_ALLELE_COLUMN = "mutated_to_allele"
 VARIANT_TYPE_COLUMNS = ["Variant_Type", "VariantType", "mut_type", "mutation_type"]
 VARIANT_CLASSIFICATION_COLUMNS = ["Variant_Classification", "class", "Transcript architecture around variant"]
@@ -205,7 +206,7 @@ VERIFICATION_STATUS_COLUMNS = ["Verification_Status", "verification_status"]
 VALIDATION_METHOD_COLUMNS = ["Validation_Method", "verification_platform"]
 MATCHED_NORMAL_SEQ_ALLELE1_COLUMNS = ["Match_Norm_Seq_Allele1", "mutated_to_allele"]
 MATCHED_NORMAL_SEQ_ALLELE2_COLUMNS = ["Match_Norm_Seq_Allele2", "control_genotype"]
-TUMOR_SAMPLE_BARCODE_COLUMNS = ["Tumor_Sample_Barcode", "analyzed_sample_id"]
+TUMOR_SAMPLE_BARCODE_COLUMNS = ["Tumor_Sample_Barcode", "analyzed_sample_id", "submitted_sample_id"]
 
 # VCF KEYS FOR RESOLVING WHICH VCF PIPIELINE WAS USED
 VCF_STRELKA_KEY_COLUMNS = ["AU", "CU", "GU", "TU"]
@@ -263,7 +264,11 @@ def resolve_tumor_seq_alleles(data, ref_allele):
     tum_seq_allele2 = ""
 
     if MUTATED_TO_ALLELE_COLUMN in data.keys():
-        return data[MUTATED_TO_ALLELE_COLUMN]
+    	# use ref allele for tumor seq allele 1 if "mutated_from_allele" not present
+    	# but "mutated_to_allele" is present
+    	tum_seq_allele1 = data.get(MUTATED_FROM_ALLELE_COLUMN, ref_allele)
+    	tum_seq_allele2 = data[MUTATED_TO_ALLELE_COLUMN]
+    	return (tum_seq_allele1, tum_seq_allele2)
 
     for column in TUMOR_SEQ_ALLELE1_COLUMNS:
         if column in data.keys():
@@ -280,10 +285,9 @@ def resolve_tumor_seq_alleles(data, ref_allele):
     if tum_seq_allele1 == "" and tum_seq_allele2 == "":
         return ("", "")
 
-    # if tum_seq_allele1 is empty after our attempt to resolve it
-    # then set it to the reference allele
-    if tum_seq_allele1 == "":
-        tum_seq_allele1 = ref_allele
+    # resolve tumor seq allele 1 from the tumor genotype column if it still has not been resolved
+    if TUMOR_GENOTYPE_COLUMN in data.keys() and tum_seq_allele1 == "":
+        tum_seq_allele1 = re.split("[\/|]", data[TUMOR_GENOTYPE_COLUMN])[0]
 
     # the importer determines which tumor seq allele to use as the alt allele
     # so simply return the resolved values as they are
@@ -494,19 +498,30 @@ def resolve_variant_allele_data(data, maf_data):
     # this will be used to resolve the variant classification and variant type
     # if there are no tumor alleles that do not match the ref allele then use empty string
     # in the event that this happens then there might be something wrong with the data itself
-    try:
-        tumor_seq_allele = [allele for allele in [tumor_seq_allele1, tumor_seq_allele2] if allele != ref_allele][0]
-    except:
-        tumor_seq_allele = ""
+    tumor_seq_allele = ""
+    for allele in [tumor_seq_allele1, tumor_seq_allele2]:
+        if allele != "" and allele != ref_allele:
+            tumor_seq_allele = allele
+            break
 
+    # resolve start and end positions
+    start_pos = resolve_start_position(data)
+
+    # if the alleles share a common prefix then remove and adjust the start position accordingly
+    if not is_missing_data_value(ref_allele) and not is_missing_data_value(tumor_seq_allele) and not is_missing_data_value(start_pos):
+        common_prefix = os.path.commonprefix([ref_allele, tumor_seq_allele])
+        if common_prefix:
+            start_pos = str(int(start_pos) + len(common_prefix))
+            ref_allele = ref_allele[len(common_prefix):]
+            tumor_seq_allele = tumor_seq_allele[len(common_prefix):]
+            if not is_missing_data_value(tumor_seq_allele1):
+                tumor_seq_allele1 = tumor_seq_allele1[len(common_prefix):]
+            if not is_missing_data_value(tumor_seq_allele2):
+                tumor_seq_allele2 = tumor_seq_allele2[len(common_prefix):]
+
+    # ref and tumor seq allele might have been updated to remove common prefixes
+    # attempt to resolve the variant type based on the potentially updated allele strings
     variant_type = resolve_variant_type(data, ref_allele, tumor_seq_allele)
-
-    # fix ref allele and tum seq allele for INS or DEL variant types
-    if variant_type == "INS":
-        ref_allele = "-"
-    elif variant_type == "DEL":
-        tumor_seq_allele = "-"
-
     variant_class = resolve_variant_classification(data, variant_type, ref_allele, tumor_seq_allele)
     # fix variant type just in case it was missed before
     if variant_class.endswith("INS") and variant_type != "INS":
@@ -514,24 +529,21 @@ def resolve_variant_allele_data(data, maf_data):
     elif variant_class.endswith("DEL") and variant_type != "DEL":
         variant_type = "DEL"
 
-    # resolve start and end positions
-    start_pos = resolve_start_position(data)
+    # fix ref allele and tum seq allele for INS or DEL variant types
+    if variant_type == "INS" and len(ref_allele) == 0:
+        ref_allele = "-"
+    elif variant_type == "DEL" and len(tumor_seq_allele) == 0:
+        tumor_seq_allele = "-"
+
     end_pos = resolve_end_position(data, start_pos, variant_type, ref_allele)
 
     maf_data["Variant_Classification"] = variant_class
     maf_data["Variant_Type"] = variant_type
     maf_data["Reference_Allele"] = ref_allele
-    maf_data["Tumor_Seq_Allele2"] = tumor_seq_allele1
+    maf_data["Tumor_Seq_Allele1"] = tumor_seq_allele1
     maf_data["Tumor_Seq_Allele2"] = tumor_seq_allele2
     maf_data["Start_Position"] = start_pos
     maf_data["End_Position"] = end_pos
-
-    # resolve tumor seq allele 1 - default is set as ref allele
-    maf_data["Tumor_Seq_Allele1"] = ref_allele
-    if TUMOR_GENOTYPE_COLUMN in data.keys():
-        tum_seq_allele1 = re.split("[\/|]", data[TUMOR_GENOTYPE_COLUMN])[0]
-        if tum_seq_allele1 != "":
-            maf_data["Tumor_Seq_Allele1"] = tum_seq_allele1
 
     return maf_data
 
@@ -787,7 +799,7 @@ def create_maf_record_from_maf(filename, data, center_name, sequence_source):
 
 def detect_file_encoding(filename):
     """
-        Reads the first million bytes of a file 
+        Reads the first million bytes of a file
         to detect the type of encoding.
     """
     with open(filename, "rb") as data_file:
@@ -1216,6 +1228,18 @@ def resolve_vcf_allele_depth_values(mapped_sample_format_data, vcf_alleles, vari
     except:
         message = "DP could not be resolved for current record in VCF: %s - using default value of empty string..." % (str(vcf_data))
         print_warning(message)
+
+    # if depth has been resolved but not ref_count, alt_count then calculate the counts
+    # if allele frequency vcf field "AF" exists
+    if (
+        not is_missing_vcf_data_value(depth) and ("AF" in mapped_sample_format_data and not is_missing_vcf_data_value(mapped_sample_format_data["AF"]))
+        and (is_missing_vcf_data_value(ref_count) or is_missing_vcf_data_value(alt_count))
+        ):
+        # check if ref count or alt count are still missing but AF VCF field is available
+        if is_missing_vcf_data_value(ref_count):
+            ref_count = str(round(float(depth) * float(mapped_sample_format_data["AF"])))
+        if is_missing_vcf_data_value(alt_count) and not is_missing_vcf_data_value(ref_count):
+            alt_count = str(round(float(depth) - float(ref_count)))
 
     return (ref_count, alt_count, depth)
 
