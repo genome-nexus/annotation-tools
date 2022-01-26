@@ -1119,6 +1119,7 @@ def resolve_vcf_allele_depth_values(mapped_sample_format_data, vcf_alleles, vari
     # 3. Strelka (SNP): handle VCF SNV lines by Strelka, where allele depths are in AU:CU:GU:TU
     elif is_strelka_snp_vcf(vcf_format_data_keys):
         # need to convert the read values to an integer so we can sort
+        read_depth_bases_to_counts_map = {}
         for k in VCF_STRELKA_KEY_COLUMNS:
 
             value = -1
