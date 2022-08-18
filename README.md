@@ -61,6 +61,16 @@ keytool -import -noprompt \
     -storepass annotation-tools
 ```
 
+### Install Python packages
+
+You need to have python3 installed.
+
+```
+pip install -r requirements.txt
+```
+
+You might want to create a virtual envirounment first instead of installing packages globally.
+
 ### Run scripts example
 
 Here is an example of how to run scripts from the repositroy directory:
