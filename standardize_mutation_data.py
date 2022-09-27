@@ -855,8 +855,17 @@ def get_vcf_sample_and_normal_ids(filename):
         tumor_sample_data_col_name = case_ids_cols[0]
         matched_normal_sample_id = "NORMAL"
     elif sample_columns_num == 2:
-        tumor_sample_data_col_name = case_ids_cols[0]
-        matched_normal_sample_id = case_ids_cols[1]
+        if "TUMOR" in case_ids_cols:
+            tumor_sample_data_col_name = "TUMOR"
+            case_ids_cols.remove("TUMOR")
+            matched_normal_sample_id = case_ids_cols[0]
+        elif "NORMAL" in case_ids_cols:
+            matched_normal_sample_id = "NORMAL"
+            case_ids_cols.remove("NORMAL")
+            tumor_sample_data_col_name = case_ids_cols[0]
+        else:
+            tumor_sample_data_col_name = case_ids_cols[0]
+            matched_normal_sample_id = case_ids_cols[1]
     else:
         raise Exception(f"Can't detect the tumor sample column among {sample_columns_num} columns")
 
