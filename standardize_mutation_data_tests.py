@@ -81,5 +81,16 @@ class StandardizeMutationDataTests(unittest.TestCase):
         self.assertNotEqual('NORMAL', maf_row['Tumor_Sample_Barcode'])
         self.assertEqual('NORMAL', maf_row['Matched_Norm_Sample_Barcode'])
 
+    def test_extract_vcf_data_from_file_1_normal_sample(self):
+        _, vcf = tempfile.mkstemp()
+        with open(vcf, 'w') as f:
+           f.write(
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tNORMAL\n"
+            "20\t14370\trs6054257\tG\tA\t29\tPASS\tNS=3;DP=14;AF=0.5;DB;H2\tGT:GQ:DP:HQ\t0|0:48:1:51,51\n"
+           )
+        with self.assertRaises(Exception) as exc:
+            extract_vcf_data_from_file(vcf, 'center name 1', 'sequence source 1')
+        self.assertEqual("There is only one sample column and it has NORMAL label. No tumor sample column present.", str(exc.exception))
+
 if __name__=='__main__':
     unittest.main()

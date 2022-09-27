@@ -852,6 +852,8 @@ def get_vcf_sample_and_normal_ids(filename):
     if sample_columns_num == 0:
         raise Exception("No sample column found")
     if sample_columns_num == 1:
+        if case_ids_cols[0] == "NORMAL":
+            raise Exception("There is only one sample column and it has NORMAL label. No tumor sample column present.")
         tumor_sample_data_col_name = case_ids_cols[0]
         matched_normal_sample_id = "NORMAL"
     elif sample_columns_num == 2:
