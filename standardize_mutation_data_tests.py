@@ -6,6 +6,17 @@ from standardize_mutation_data import extract_vcf_data_from_file
 
 class StandardizeMutationDataTests(unittest.TestCase):
 
+    def test_extract_vcf_data_from_file_no_samples(self):
+        _, vcf = tempfile.mkstemp()
+        with open(vcf, 'w') as f:
+           f.write(
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\n"
+            "20\t14370\trs6054257\tG\tA\t29\tPASS\tNS=3;DP=14;AF=0.5;DB;H2\tGT:GQ:DP:HQ\n"
+           )
+        with self.assertRaises(Exception) as exc:
+            extract_vcf_data_from_file(vcf, 'center name 1', 'sequence source 1')
+        self.assertEqual("No sample column found", str(exc.exception))
+
     def test_extract_vcf_data_from_file_1_sample(self):
         _, vcf = tempfile.mkstemp()
         with open(vcf, 'w') as f:
