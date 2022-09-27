@@ -852,6 +852,10 @@ def get_vcf_sample_and_normal_ids(filename):
             vcf_meta_header[key] = val
     # get the case id columns based on which columns in the header are not part of the fixed VCF header
     case_ids_cols = [col for col in vcf_file_header if col not in VCF_FIXED_HEADER_NON_CASE_IDS]
+    if 'normal_sample' in vcf_meta_header and vcf_meta_header['normal_sample'] not in case_ids_cols:
+        raise Exception(f"There is normal_sample={vcf_meta_header['normal_sample']} in the header, but no respective column found.")
+    if 'tumor_sample' in vcf_meta_header and vcf_meta_header['tumor_sample'] not in case_ids_cols:
+        raise Exception(f"There is tumor_sample={vcf_meta_header['tumor_sample']} in the header, but no respective column found.")
     if 'tumor_sample' in vcf_meta_header:
         return (vcf_meta_header['tumor_sample'], vcf_meta_header['tumor_sample'], vcf_meta_header['normal_sample'] if 'normal_sample' in vcf_meta_header else "NORMAL")
     sample_columns_num = len(case_ids_cols)

@@ -107,5 +107,30 @@ class StandardizeMutationDataTests(unittest.TestCase):
         self.assertEqual('S2', maf_row['Tumor_Sample_Barcode'])
         self.assertEqual('S1', maf_row['Matched_Norm_Sample_Barcode'])
 
+    def test_extract_vcf_data_from_file_normal_sample_refers_to_non_existing_column(self):
+        _, vcf = tempfile.mkstemp()
+        with open(vcf, 'w') as f:
+           f.write(
+            '##normal_sample=S1\n'
+            '##tumor_sample=S2\n'
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS2\n"
+            "20\t14370\trs6054257\tG\tA\t29\tPASS\tNS=3;DP=14;AF=0.5;DB;H2\tGT:GQ:DP:HQ\t0|0:48:1:51,51\n"
+           )
+        with self.assertRaises(Exception) as exc:
+            extract_vcf_data_from_file(vcf, 'center name 1', 'sequence source 1')
+        self.assertEqual("There is normal_sample=S1 in the header, but no respective column found.", str(exc.exception))
+
+    def test_extract_vcf_data_from_file_tumor_sample_refers_to_non_existing_column(self):
+        _, vcf = tempfile.mkstemp()
+        with open(vcf, 'w') as f:
+           f.write(
+            '##normal_sample=S1\n'
+            '##tumor_sample=S2\n'
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\n"
+            "20\t14370\trs6054257\tG\tA\t29\tPASS\tNS=3;DP=14;AF=0.5;DB;H2\tGT:GQ:DP:HQ\t0|0:48:1:51,51\n"
+           )
+        with self.assertRaises(Exception) as exc:
+            extract_vcf_data_from_file(vcf, 'center name 1', 'sequence source 1')
+        self.assertEqual("There is tumor_sample=S2 in the header, but no respective column found.", str(exc.exception))
 if __name__=='__main__':
     unittest.main()
