@@ -842,12 +842,18 @@ def get_vcf_sample_and_normal_ids(filename):
 
 
     vcf_file_header = []
+    vcf_meta_header = dict()
     for line in extract_file_data(filename):
         if line.startswith("#CHROM"):
             vcf_file_header = list(map(str.strip, line.replace("#", "").split("\t")))
             break
+        elif line.startswith("##"):
+            key, val = list(map(str.strip, line.replace("##", "").split("=")))
+            vcf_meta_header[key] = val
     # get the case id columns based on which columns in the header are not part of the fixed VCF header
     case_ids_cols = [col for col in vcf_file_header if col not in VCF_FIXED_HEADER_NON_CASE_IDS]
+    if 'tumor_sample' in vcf_meta_header:
+        return (vcf_meta_header['tumor_sample'], vcf_meta_header['tumor_sample'], vcf_meta_header['normal_sample'] if 'normal_sample' in vcf_meta_header else "NORMAL")
     sample_columns_num = len(case_ids_cols)
     if sample_columns_num == 0:
         raise Exception("No sample column found")
