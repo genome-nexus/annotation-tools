@@ -848,17 +848,17 @@ def get_vcf_sample_and_normal_ids(filename):
             break
     # get the case id columns based on which columns in the header are not part of the fixed VCF header
     case_ids_cols = [col for col in vcf_file_header if col not in VCF_FIXED_HEADER_NON_CASE_IDS]
-    if len(case_ids_cols) == 0:
+    sample_columns_num = len(case_ids_cols)
+    if sample_columns_num == 0:
         raise Exception("No sample column found")
-    if len(case_ids_cols) == 1:
+    if sample_columns_num == 1:
         tumor_sample_data_col_name = case_ids_cols[0]
         matched_normal_sample_id = "NORMAL"
-    elif len(case_ids_cols) == 2:
+    elif sample_columns_num == 2:
         tumor_sample_data_col_name = case_ids_cols[0]
         matched_normal_sample_id = case_ids_cols[1]
     else:
-        tumor_sample_data_col_name = "TUMOR"
-        matched_normal_sample_id = "NORMAL"
+        raise Exception(f"Can't detect the tumor sample column among {sample_columns_num} columns")
 
     if tumor_sample_data_col_name == "TUMOR":
         tumor_sample_id = os.path.basename(filename).replace(".vcf", "")
