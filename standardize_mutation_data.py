@@ -869,7 +869,7 @@ def get_vcf_sample_and_normal_ids(filename):
             tumor_sample_data_col_name = case_ids_cols[0]
             matched_normal_sample_id = case_ids_cols[1]
     else:
-        raise Exception(f"Can't detect the tumor sample column among {sample_columns_num} columns")
+        raise Exception(f"Expected max 2 sample columns for tumor and normal sample. But found {sample_columns_num} columns.")
 
     if tumor_sample_data_col_name == "TUMOR":
         tumor_sample_id = os.path.basename(filename).replace(".vcf", "")

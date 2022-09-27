@@ -66,7 +66,7 @@ class StandardizeMutationDataTests(unittest.TestCase):
            )
         with self.assertRaises(Exception) as exc:
             extract_vcf_data_from_file(vcf, 'center name 1', 'sequence source 1')
-        self.assertEqual("Can't detect the tumor sample column among 3 columns", str(exc.exception))
+        self.assertEqual("Expected max 2 sample columns for tumor and normal sample. But found 3 columns.", str(exc.exception))
 
     def test_extract_vcf_data_from_file_tumor_normal_swap(self):
         _, vcf = tempfile.mkstemp()
