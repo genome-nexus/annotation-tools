@@ -857,6 +857,8 @@ def get_vcf_sample_and_normal_ids(filename):
         raise Exception(f"There is normal_sample={vcf_meta_header['normal_sample']} in the header, but no respective column found.")
     if 'tumor_sample' in vcf_meta_header and vcf_meta_header['tumor_sample'] not in case_ids_cols:
         raise Exception(f"There is tumor_sample={vcf_meta_header['tumor_sample']} in the header, but no respective column found.")
+    if ('tumor_sample' in vcf_meta_header and 'normal_sample' not in vcf_meta_header) or ('normal_sample' in vcf_meta_header and 'tumor_sample' not in vcf_meta_header):
+        raise Exception(f"The tumor_sample and normal_sample are expected together in the header. Found only one of them.")
     sample_columns_num = len(case_ids_cols)
     if sample_columns_num == 0:
         raise Exception("No sample column found")
@@ -869,36 +871,27 @@ def get_vcf_sample_and_normal_ids(filename):
     tumor_sample_id = None
     matched_normal_sample_id = None
 
+    # if 'tumor_sample' is in vcf_meta_header (meaning 'normal_sample' will also be), use that:
     if 'tumor_sample' in vcf_meta_header:
-        tumor_sample_data_col_name = vcf_meta_header['tumor_sample']
-        case_ids_cols.remove(tumor_sample_data_col_name)
-
-    if 'normal_sample' in vcf_meta_header:
+        tumor_sample_data_col_name = tumor_sample_id = vcf_meta_header['tumor_sample']
         matched_normal_sample_id = vcf_meta_header['normal_sample']
-        case_ids_cols.remove(matched_normal_sample_id)
+        return (tumor_sample_id, tumor_sample_data_col_name, matched_normal_sample_id)
 
-    if tumor_sample_data_col_name is None and 'TUMOR' in case_ids_cols:
-        tumor_sample_data_col_name = 'TUMOR'
-        case_ids_cols.remove(tumor_sample_data_col_name)
-        tumor_sample_id = os.path.basename(filename).replace(".vcf", "")
-
-    if matched_normal_sample_id is None and 'NORMAL' in case_ids_cols:
-        matched_normal_sample_id = 'NORMAL'
-        case_ids_cols.remove(matched_normal_sample_id)
-
-    if tumor_sample_data_col_name is None and len(case_ids_cols) > 0:
+    # otherwise, parse the names and sample ids in the old way (from column headers - assuming fixed order):
+    if len(case_ids_cols) == 1:
         tumor_sample_data_col_name = case_ids_cols[0]
-        case_ids_cols.remove(tumor_sample_data_col_name)
+        matched_normal_sample_id = "NORMAL"
+    elif len(case_ids_cols) == 2:
+        tumor_sample_data_col_name = case_ids_cols[0]
+        matched_normal_sample_id = case_ids_cols[1]
+    else:
+        tumor_sample_data_col_name = "TUMOR"
+        matched_normal_sample_id = "NORMAL"
 
-    if matched_normal_sample_id is None and len(case_ids_cols) > 0:
-        matched_normal_sample_id = case_ids_cols[0]
-        case_ids_cols.remove(matched_normal_sample_id)
-
-    if tumor_sample_id is None:
+    if tumor_sample_data_col_name == "TUMOR":
+        tumor_sample_id = os.path.basename(filename).replace(".vcf", "")
+    else:
         tumor_sample_id = tumor_sample_data_col_name
-
-    if matched_normal_sample_id is None:
-        matched_normal_sample_id = 'NORMAL'
 
     return (tumor_sample_id, tumor_sample_data_col_name, matched_normal_sample_id)
 
