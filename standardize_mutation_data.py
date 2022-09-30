@@ -884,9 +884,6 @@ def get_vcf_sample_and_normal_ids(filename):
     elif len(case_ids_cols) == 2:
         tumor_sample_data_col_name = case_ids_cols[0]
         matched_normal_sample_id = case_ids_cols[1]
-    else:
-        tumor_sample_data_col_name = "TUMOR"
-        matched_normal_sample_id = "NORMAL"
 
     if tumor_sample_data_col_name == "TUMOR":
         tumor_sample_id = os.path.basename(filename).replace(".vcf", "")
