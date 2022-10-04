@@ -842,26 +842,54 @@ def get_vcf_sample_and_normal_ids(filename):
 
 
     vcf_file_header = []
+    vcf_meta_header = dict()
     for line in extract_file_data(filename):
         if line.startswith("#CHROM"):
             vcf_file_header = list(map(str.strip, line.replace("#", "").split("\t")))
             break
+        elif line.startswith("##"):
+            key, *val_splits = list(map(str.strip, line.replace("##", "").split("=")))
+            vcf_meta_header[key] = "=".join(val_splits)
     # get the case id columns based on which columns in the header are not part of the fixed VCF header
     case_ids_cols = [col for col in vcf_file_header if col not in VCF_FIXED_HEADER_NON_CASE_IDS]
+
+    if 'normal_sample' in vcf_meta_header and vcf_meta_header['normal_sample'] not in case_ids_cols:
+        raise Exception(f"There is normal_sample={vcf_meta_header['normal_sample']} in the header, but no respective column found.")
+    if 'tumor_sample' in vcf_meta_header and vcf_meta_header['tumor_sample'] not in case_ids_cols:
+        raise Exception(f"There is tumor_sample={vcf_meta_header['tumor_sample']} in the header, but no respective column found.")
+    if ('tumor_sample' in vcf_meta_header and 'normal_sample' not in vcf_meta_header) or ('normal_sample' in vcf_meta_header and 'tumor_sample' not in vcf_meta_header):
+        raise Exception(f"The tumor_sample and normal_sample are expected together in the header. Found only one of them.")
+    sample_columns_num = len(case_ids_cols)
+    if sample_columns_num == 0:
+        raise Exception("No sample column found")
+    if sample_columns_num == 1 and case_ids_cols[0] == "NORMAL":
+            raise Exception("There is only one sample column and it has NORMAL label. No tumor sample column present.")
+    if sample_columns_num > 2:
+        raise Exception(f"Expected max 2 sample columns for tumor and normal sample. But found {sample_columns_num} columns.")
+
+    tumor_sample_data_col_name = None
+    tumor_sample_id = None
+    matched_normal_sample_id = None
+
+    # if 'tumor_sample' is in vcf_meta_header (meaning 'normal_sample' will also be), use that:
+    if 'tumor_sample' in vcf_meta_header:
+        tumor_sample_data_col_name = tumor_sample_id = vcf_meta_header['tumor_sample']
+        matched_normal_sample_id = vcf_meta_header['normal_sample']
+        return (tumor_sample_id, tumor_sample_data_col_name, matched_normal_sample_id)
+
+    # otherwise, parse the names and sample ids in the old way (from column headers - assuming fixed order):
     if len(case_ids_cols) == 1:
         tumor_sample_data_col_name = case_ids_cols[0]
         matched_normal_sample_id = "NORMAL"
     elif len(case_ids_cols) == 2:
         tumor_sample_data_col_name = case_ids_cols[0]
         matched_normal_sample_id = case_ids_cols[1]
-    else:
-        tumor_sample_data_col_name = "TUMOR"
-        matched_normal_sample_id = "NORMAL"
 
     if tumor_sample_data_col_name == "TUMOR":
         tumor_sample_id = os.path.basename(filename).replace(".vcf", "")
     else:
         tumor_sample_id = tumor_sample_data_col_name
+
     return (tumor_sample_id, tumor_sample_data_col_name, matched_normal_sample_id)
 
 def resolve_vcf_allele(vcf_data):
