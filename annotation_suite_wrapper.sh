@@ -90,7 +90,7 @@ fi
 
 PROCESSED_SUB_DIR_NAME="${OUTPUT_DATA_DIRECTORY}/processed"
 ANNOTATED_SUB_DIR_NAME="${OUTPUT_DATA_DIRECTORY}/annotated"
-FILE_EXTENSIONS_LIST="vcf,maf,txt" # text files are treated as MAFs to handle names like data_mutations_extended.txt
+FILE_EXTENSIONS_LIST="vcf,maf,txt,tsv" # text files are treated as MAFs to handle names like data_mutations_extended.txt
 
 STANDARDIZE_MUTATION_DATA_SCRIPT=${ANNOTATION_SUITE_SCRIPTS_HOME}/standardize_mutation_data.py
 GENOME_NEXUS_ANNOTATOR_JAR=${ANNOTATION_SUITE_SCRIPTS_HOME}/annotator.jar
@@ -128,7 +128,7 @@ function annotateMAF {
     input_file="$1"
     output_file=${ANNOTATED_SUB_DIR_NAME}/$(basename "${input_file}").annotated
     echo -e "\t[INFO] annotateMAF(), annotating MAF: ${input_file} --> ${output_file}"
-    java -Xmx48g -XX:MaxPermSize=512m ${JAVA_SSL_ARGS} -jar ${GENOME_NEXUS_ANNOTATOR_JAR} --filename "${input_file}" --output-filename "${output_file}" --isoform-override ${GENOME_NEXUS_ANNOTATOR_ISOFORM} -p ${GENOME_NEXUS_ANNOTATOR_POST_SIZE} -r
+    java -Xmx48g ${JAVA_SSL_ARGS} -jar ${GENOME_NEXUS_ANNOTATOR_JAR} --filename "${input_file}" --output-filename "${output_file}" --isoform-override ${GENOME_NEXUS_ANNOTATOR_ISOFORM} -p ${GENOME_NEXUS_ANNOTATOR_POST_SIZE} -r
     if [ $? -gt 0 ] ; then
         echo -e "\n[ERROR] annotateMAF(), error encountered while running the genome nexus annotation pipeline"
         exit 1
