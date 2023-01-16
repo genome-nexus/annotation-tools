@@ -90,7 +90,7 @@ fi
 
 PROCESSED_SUB_DIR_NAME="${OUTPUT_DATA_DIRECTORY}/processed"
 ANNOTATED_SUB_DIR_NAME="${OUTPUT_DATA_DIRECTORY}/annotated"
-FILE_EXTENSIONS_LIST="vcf,maf,txt" # text files are treated as MAFs to handle names like data_mutations_extended.txt
+FILE_EXTENSIONS_LIST="vcf,maf,txt,tsv" # text files are treated as MAFs to handle names like data_mutations_extended.txt
 
 STANDARDIZE_MUTATION_DATA_SCRIPT=${ANNOTATION_SUITE_SCRIPTS_HOME}/standardize_mutation_data.py
 GENOME_NEXUS_ANNOTATOR_JAR=${ANNOTATION_SUITE_SCRIPTS_HOME}/annotator.jar
