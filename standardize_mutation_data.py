@@ -507,17 +507,17 @@ def resolve_variant_allele_data(data, maf_data):
     # resolve start and end positions
     start_pos = resolve_start_position(data)
 
-    # if the alleles share a common prefix then remove and adjust the start position accordingly
-    if not is_missing_data_value(ref_allele) and not is_missing_data_value(tumor_seq_allele) and not is_missing_data_value(start_pos):
-        common_prefix = os.path.commonprefix([ref_allele, tumor_seq_allele])
-        if common_prefix:
-            start_pos = str(int(start_pos) + len(common_prefix))
-            ref_allele = ref_allele[len(common_prefix):]
-            tumor_seq_allele = tumor_seq_allele[len(common_prefix):]
-            if not is_missing_data_value(tumor_seq_allele1):
-                tumor_seq_allele1 = tumor_seq_allele1[len(common_prefix):]
-            if not is_missing_data_value(tumor_seq_allele2):
-                tumor_seq_allele2 = tumor_seq_allele2[len(common_prefix):]
+    # # if the alleles share a common prefix then remove and adjust the start position accordingly
+    # if not is_missing_data_value(ref_allele) and not is_missing_data_value(tumor_seq_allele) and not is_missing_data_value(start_pos):
+    #     common_prefix = os.path.commonprefix([ref_allele, tumor_seq_allele])
+    #     if common_prefix:
+    #         start_pos = str(int(start_pos) + len(common_prefix))
+    #         ref_allele = ref_allele[len(common_prefix):]
+    #         tumor_seq_allele = tumor_seq_allele[len(common_prefix):]
+    #         if not is_missing_data_value(tumor_seq_allele1):
+    #             tumor_seq_allele1 = tumor_seq_allele1[len(common_prefix):]
+    #         if not is_missing_data_value(tumor_seq_allele2):
+    #             tumor_seq_allele2 = tumor_seq_allele2[len(common_prefix):]
 
     # ref and tumor seq allele might have been updated to remove common prefixes
     # attempt to resolve the variant type based on the potentially updated allele strings
