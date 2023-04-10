@@ -977,7 +977,7 @@ def extract_vcf_format_info_data(vcf_data, tumor_sample_data_col, matched_normal
         # if 'FUNC' is a key in the 'INFO' data then promote key-value pairs to primary
         # key-value pairs in vcf_data dictionary - "FUNC" may contain important tumor or
         # normal sample data such as reads, alleles, etc.
-        if key.startswith("FUNC"):
+        if key=="FUNC":
             # must replace single quotes with double quotes to avoid
             # errors when loading string as a json
             vcf_func_data = json.loads(str(value.replace("'", '"')))
