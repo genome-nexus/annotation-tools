@@ -26,7 +26,7 @@ command -v java >/dev/null 2>&1 || { echo "java is required to run this program 
 
 function usage {
     echo "annotation_suite_wrapper.sh"
-    echo -e "\t-i | --input-directory                   input data directory for processing mutation data files [REQUIRED]"
+    echo -e "\t-i | --input-directory               input data directory for processing mutation data files [REQUIRED]"
     echo -e "\t-o | --output-directory              output directory to write processed and annotated mutation data files to [REQUIRED]"
     echo -e "\t-m | --merged-mutation-file          path to write the merged mutation file for the center [REQUIRED]"
     echo -e "\t-c | --center-name                   name of the center being processed [REQUIRED]"
