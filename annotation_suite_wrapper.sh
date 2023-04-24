@@ -87,12 +87,11 @@ else
     JAVA_SSL_ARGS="-Djavax.net.ssl.trustStore=${SSL_CERT_PATH}"
 fi
 
-
 PROCESSED_SUB_DIR_NAME="${OUTPUT_DATA_DIRECTORY}/processed"
 ANNOTATED_SUB_DIR_NAME="${OUTPUT_DATA_DIRECTORY}/annotated"
-FILE_EXTENSIONS_LIST="vcf,maf,txt" # text files are treated as MAFs to handle names like data_mutations_extended.txt
 
-STANDARDIZE_MUTATION_DATA_SCRIPT=${ANNOTATION_SUITE_SCRIPTS_HOME}/standardize_mutation_data.py
+VCF2MAF_SCRIPT=${ANNOTATION_SUITE_SCRIPTS_HOME}/vcf2maf.py
+MAF2MAF_SCRIPT=${ANNOTATION_SUITE_SCRIPTS_HOME}/maf2maf.py
 GENOME_NEXUS_ANNOTATOR_JAR=${ANNOTATION_SUITE_SCRIPTS_HOME}/annotator.jar
 MERGE_MAFS_SCRIPT=${ANNOTATION_SUITE_SCRIPTS_HOME}/merge_mafs.py
 
@@ -116,9 +115,15 @@ function initAndCleanWorkingDirectory {
 function standardizeMutationFilesFromDirectory {
     # processed files will be written to ${OUTPUT_DATA_DIRECTORY}/processed
     echo -e "\t[INFO] standardizeMutationFilesFromDirectory(), standardized mutation files from ${INPUT_DATA_DIRECTORY} will be written to ${PROCESSED_SUB_DIR_NAME}"
-    python3 ${STANDARDIZE_MUTATION_DATA_SCRIPT} --input-directory "${INPUT_DATA_DIRECTORY}" --output-directory "${PROCESSED_SUB_DIR_NAME}" --center ${CENTER_NAME} --sequence-source ${SEQUENCE_SOURCE} --extensions ${FILE_EXTENSIONS_LIST}
+    python3 ${VCF2MAF_SCRIPT} --input-data "${INPUT_DATA_DIRECTORY}" --output-directory "${PROCESSED_SUB_DIR_NAME}" --center ${CENTER_NAME} --sequence-source ${SEQUENCE_SOURCE}
     if [ $? -gt 0 ] ; then
-        echo -e "\n[ERROR] standardizeMutationFilesFromDirectory(), error encountered while running ${STANDARDIZE_MUTATION_DATA_SCRIPT}"
+        echo -e "\n[ERROR] standardizeMutationFilesFromDirectory(), error encountered while running ${VCF2MAF_SCRIPT}"
+        exit 1
+    fi
+
+    python3 ${MAF2MAF_SCRIPT} --input-data "${INPUT_DATA_DIRECTORY}" --output-directory "${PROCESSED_SUB_DIR_NAME}" --center ${CENTER_NAME} --sequence-source ${SEQUENCE_SOURCE}
+    if [ $? -gt 0 ] ; then
+        echo -e "\n[ERROR] standardizeMutationFilesFromDirectory(), error encountered while running ${MAF2MAF_SCRIPT}"
         exit 1
     fi
 }
