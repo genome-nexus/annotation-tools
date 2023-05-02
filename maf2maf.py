@@ -706,6 +706,25 @@ def resolve_allele_counts_data(data, maf_data):
 
 	return maf_data
 
+def resolve_variant_type_class(data, ref_allele, tumor_seq_allele):
+	# ref and tumor seq allele might have been updated to remove common prefixes
+	# attempt to resolve the variant type based on the potentially updated allele strings
+	variant_type = resolve_variant_type(data, ref_allele, tumor_seq_allele)
+	variant_class = resolve_variant_classification(data, variant_type, ref_allele, tumor_seq_allele)
+
+	# fix variant type just in case it was missed before
+	if variant_class.upper().endswith("INS") and variant_type != "INS":
+		variant_type = "INS"
+	elif variant_class.upper().endswith("DEL") and variant_type != "DEL":
+		variant_type = "DEL"
+
+	# fix ref allele and tum seq allele for INS or DEL variant types
+	if variant_type == "INS" and len(ref_allele) == 0:
+		ref_allele = "-"
+	elif variant_type == "DEL" and len(tumor_seq_allele) == 0:
+		tumor_seq_allele = "-"
+
+	return variant_type, variant_class, ref_allele, tumor_seq_allele
 def resolve_variant_allele_data(data, maf_data):
 	"""
 		Resolves the variant allele data.
@@ -738,30 +757,15 @@ def resolve_variant_allele_data(data, maf_data):
 	if not is_missing_data_value(ref_allele) and not is_missing_data_value(tumor_seq_allele) and not is_missing_data_value(start_pos):
 		common_prefix = os.path.commonprefix([ref_allele, tumor_seq_allele])
 		if common_prefix:
-			start_pos = str(int(start_pos) + len(common_prefix))
-			ref_allele = ref_allele[len(common_prefix):]
-			tumor_seq_allele = tumor_seq_allele[len(common_prefix):]
-			if not is_missing_data_value(tumor_seq_allele1):
-				tumor_seq_allele1 = tumor_seq_allele1[len(common_prefix):]
-			if not is_missing_data_value(tumor_seq_allele2):
-				tumor_seq_allele2 = tumor_seq_allele2[len(common_prefix):]
+			ref = ref_allele[len(common_prefix):]
+			alt = tumor_seq_allele[len(common_prefix):]
+			variant_type, variant_class, ref, alt = resolve_variant_type_class(data, ref, alt)
+			if variant_type != 'INS':
+				start_pos = str(int(start_pos) + len(common_prefix))
+			ref_allele = tumor_seq_allele1 = ref
+			tumor_seq_allele = tumor_seq_allele2 = alt
 
-	# ref and tumor seq allele might have been updated to remove common prefixes
-	# attempt to resolve the variant type based on the potentially updated allele strings
-	variant_type = resolve_variant_type(data, ref_allele, tumor_seq_allele)
-	variant_class = resolve_variant_classification(data, variant_type, ref_allele, tumor_seq_allele)
-	# fix variant type just in case it was missed before
-	if variant_class.endswith("INS") and variant_type != "INS":
-		variant_type = "INS"
-	elif variant_class.endswith("DEL") and variant_type != "DEL":
-		variant_type = "DEL"
-
-	# fix ref allele and tum seq allele for INS or DEL variant types
-	if variant_type == "INS" and len(ref_allele) == 0:
-		ref_allele = "-"
-	elif variant_type == "DEL" and len(tumor_seq_allele) == 0:
-		tumor_seq_allele = "-"
-
+	variant_type, variant_class, ref_allele, tumor_seq_allele = resolve_variant_type_class(data, ref_allele, tumor_seq_allele)
 	end_pos = resolve_end_position(data, start_pos, variant_type, ref_allele)
 
 	maf_data["Variant_Classification"] = variant_class
@@ -972,7 +976,6 @@ def main(input_data, output_directory, center, sequence_source):
 	# generate input maf files list
 	datafiles = []
 	for item in input_data.split(','):
-		print("\nLoading data from: %s" % (item))
 		if os.path.isfile(item):
 			datafiles.append(item)
 		elif os.path.isdir(item):
