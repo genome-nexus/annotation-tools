@@ -725,6 +725,7 @@ def resolve_variant_type_class(data, ref_allele, tumor_seq_allele):
 		tumor_seq_allele = "-"
 
 	return variant_type, variant_class, ref_allele, tumor_seq_allele
+
 def resolve_variant_allele_data(data, maf_data):
 	"""
 		Resolves the variant allele data.
