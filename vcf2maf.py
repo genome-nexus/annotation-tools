@@ -1236,7 +1236,7 @@ def main(input_data, output_directory, center, sequence_source, tumor_id, normal
 		elif os.path.isdir(item):
 			files = [os.path.join(item,x) for x in os.listdir(item) if x.endswith('.vcf')]
 			datafiles.extend(files)
-		else: print("The path \'%s\' is ivalid" % item)
+		else: print("The path \'%s\' is invalid" % item)
 
 	# Create output directory
 	if output_directory=='vcf2maf_output': #default folder if output path not specified
@@ -1247,7 +1247,7 @@ def main(input_data, output_directory, center, sequence_source, tumor_id, normal
 			os.mkdir(output_directory)
 			print("created output folder : '{}' ".format(output_directory))
 		except:
-			print("The output path \'%s\' is ivalid" % output_directory)
+			print("The output path \'%s\' is invalid" % output_directory)
 			sys.exit(1)
 	
 	# Process .vcf files
