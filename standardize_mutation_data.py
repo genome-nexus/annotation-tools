@@ -1308,21 +1308,21 @@ def resolve_vcf_variant_allele_data(vcf_data, maf_data):
     variant_class = ""
 
     if (ref_allele != "N" and ref_allele != "") and alt_allele != "":
-        # indels from vcf need to be shifted by one nucleotide and start position needs to be incremented by one
-        if ref_allele[0] == alt_allele[0] and ref_allele != alt_allele:
-            # shift ref allele and alt allele by one nucleotide, set as "-" if len == 1
-            if len(ref_allele) == 1:
-                ref_allele = "-"
-            else:
-                ref_allele = ref_allele[1:]
-            if len(alt_allele) == 1:
-                alt_allele = "-"
-            else:
-                alt_allele = alt_allele[1:]
+        # # indels from vcf need to be shifted by one nucleotide and start position needs to be incremented by one
+        # if ref_allele[0] == alt_allele[0] and ref_allele != alt_allele:
+        #     # shift ref allele and alt allele by one nucleotide, set as "-" if len == 1
+        #     if len(ref_allele) == 1:
+        #         ref_allele = "-"
+        #     else:
+        #         ref_allele = ref_allele[1:]
+        #     if len(alt_allele) == 1:
+        #         alt_allele = "-"
+        #     else:
+        #         alt_allele = alt_allele[1:]
 
-            # fix start position value
-            # if start_pos != "":
-            #     start_pos = str(int(start_pos) + 1)
+        #     # fix start position value
+        #     if start_pos != "":q
+        #         start_pos = str(int(start_pos) + 1)
 
         # resolve variant type, end position, and variant class
         variant_type = resolve_vcf_variant_type(ref_allele, alt_allele)
