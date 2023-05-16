@@ -1321,8 +1321,8 @@ def resolve_vcf_variant_allele_data(vcf_data, maf_data):
                 alt_allele = alt_allele[1:]
 
             # fix start position value
-            if start_pos != "":
-                start_pos = str(int(start_pos) + 1)
+            # if start_pos != "":
+            #     start_pos = str(int(start_pos) + 1)
 
         # resolve variant type, end position, and variant class
         variant_type = resolve_vcf_variant_type(ref_allele, alt_allele)
