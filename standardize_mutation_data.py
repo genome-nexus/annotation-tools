@@ -457,13 +457,13 @@ def resolve_end_position(data, start_pos, variant_type, ref_allele):
         if column in data.keys():
             end_pos = process_datum(data[column])
             break
-    # # if insertion then end pos is start pos + 1
-    # if variant_type == "INS" or ref_allele == "-":
-    #     try:
-    #         end_pos = str(int(start_pos)+1)
-    #     except ValueError:
-    #         print(data)
-    #         sys.exit(2)
+    # if insertion then end pos is start pos + 1
+    if variant_type == "INS" or ref_allele == "-":
+        try:
+            end_pos = str(int(start_pos)+1)
+        except ValueError:
+            print(data)
+            sys.exit(2)
 
     # resolve end pos from ref allele length if empty string
     if end_pos == "":
