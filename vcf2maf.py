@@ -333,10 +333,10 @@ def resolve_vcf_allele_depth_values(mapped_sample_format_data, vcf_alleles, vari
 		# need to convert the read values to an integer so we can sort
 		read_depth_bases_to_counts_map = {}
 		for k in VCF_STRELKA_KEY_COLUMNS:
-
 			value = -1
-			if is_valid_integer(mapped_sample_format_data[k]):
-				value = int(mapped_sample_format_data[k])
+			# If multiple tiers, report tier1 counts by picking the first comma-delimited value
+			if is_valid_integer(mapped_sample_format_data[k].split(',')[0]):
+				value = int(mapped_sample_format_data[k].split(',')[0])
 			read_depth_bases_to_counts_map[k.replace("U", "")] = value
 
 		# if the only alt allele is N then set it to the allele with the highest non-ref readcount
@@ -357,10 +357,13 @@ def resolve_vcf_allele_depth_values(mapped_sample_format_data, vcf_alleles, vari
 				read_depth_value = ""
 			allele_depth_values[i] = read_depth_value
 
-	# 4. Strelka (INDEL): handle VCF INDEL lines by Strelka, where variant allele depth is in TIR
+	# 4. Strelka (INDEL): handle VCF INDEL lines by Strelka, where variant allele depth is in TIR, reference allele depth is in TAR.
 	elif is_strelka_indel_vcf(vcf_format_data_keys):
-		# reference allele depth is not provided by Strelka for indels, so we have to skip it
+		# pick tier1 counts if a comma-delimited value
 		allele_depth_values[variant_allele_idx] = mapped_sample_format_data["TIR"].split(",")[0]
+		if variant_allele_idx == 1: ref_allele_idx = 0
+		else: ref_allele_idx = 1
+		allele_depth_values[ref_allele_idx] = mapped_sample_format_data["TAR"].split(",")[0]
 
 	# 5. CaVEMan: handle VCF lines by CaVEMan, where allele depths are in FAZ:FCZ:FGZ:FTZ:RAZ:RCZ:RGZ:RTZ
 	elif is_caveman_vcf(vcf_format_data_keys):
@@ -865,7 +868,7 @@ def is_missing_data_value(value):
 	return (value in NULL_OR_MISSING_VALUES)
 
 def print_warning(message):
-    print(message)
+	print(message)
 
 def process_datum(value):
 	"""
