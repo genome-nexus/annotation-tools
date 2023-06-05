@@ -870,6 +870,9 @@ def create_maf_record_from_vcf(sample_id, center_name, sequence_source, vcf_data
 def is_missing_data_value(value):
     return (value in NULL_OR_MISSING_VALUES)
 
+def print_warning(message):
+    print(message)
+
 def process_datum(value):
     """
         Returns a cleaned up data value.
