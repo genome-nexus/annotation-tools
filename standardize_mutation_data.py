@@ -266,9 +266,9 @@ def resolve_tumor_seq_alleles(data, ref_allele):
     if MUTATED_TO_ALLELE_COLUMN in data.keys():
     	# use ref allele for tumor seq allele 1 if "mutated_from_allele" not present
     	# but "mutated_to_allele" is present
-    	tum_seq_allele1 = data.get(MUTATED_FROM_ALLELE_COLUMN, ref_allele)
-    	tum_seq_allele2 = data[MUTATED_TO_ALLELE_COLUMN]
-    	return (tum_seq_allele1, tum_seq_allele2)
+        tum_seq_allele1 = data.get(MUTATED_FROM_ALLELE_COLUMN, ref_allele)
+        tum_seq_allele2 = data[MUTATED_TO_ALLELE_COLUMN]
+        return (tum_seq_allele1, tum_seq_allele2)
 
     for column in TUMOR_SEQ_ALLELE1_COLUMNS:
         if column in data.keys():
