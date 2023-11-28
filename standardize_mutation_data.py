@@ -266,9 +266,9 @@ def resolve_tumor_seq_alleles(data, ref_allele):
     if MUTATED_TO_ALLELE_COLUMN in data.keys():
     	# use ref allele for tumor seq allele 1 if "mutated_from_allele" not present
     	# but "mutated_to_allele" is present
-    	tum_seq_allele1 = data.get(MUTATED_FROM_ALLELE_COLUMN, ref_allele)
-    	tum_seq_allele2 = data[MUTATED_TO_ALLELE_COLUMN]
-    	return (tum_seq_allele1, tum_seq_allele2)
+        tum_seq_allele1 = data.get(MUTATED_FROM_ALLELE_COLUMN, ref_allele)
+        tum_seq_allele2 = data[MUTATED_TO_ALLELE_COLUMN]
+        return (tum_seq_allele1, tum_seq_allele2)
 
     for column in TUMOR_SEQ_ALLELE1_COLUMNS:
         if column in data.keys():
@@ -870,12 +870,12 @@ def resolve_vcf_allele(vcf_data):
     alt_allele = ""
 
     if vcf_data["ALT"] in ["<DEL>", "<DUP>", "<INV>", "<TRA>"]:
-        if vcf_data["REF"] == "N" or vcf_data["REF"] == "":
+        if vcf_data["REF"] == "":
             ref_allele = vcf_data["INFO"].get("CONSENSUS", "")
         else:
             ref_allele = vcf_data["REF"]
 
-        if ref_allele != "N" and ref_allele != "":
+        if ref_allele != "":
             if vcf_data["ALT"] == "<DEL>":
                 alt_allele = "-"
             if vcf_data["ALT"] == "<INV>":
@@ -1307,7 +1307,7 @@ def resolve_vcf_variant_allele_data(vcf_data, maf_data):
     end_pos = ""
     variant_class = ""
 
-    if (ref_allele != "N" and ref_allele != "") and alt_allele != "":
+    if ref_allele != "" and alt_allele != "":
         # # indels from vcf need to be shifted by one nucleotide and start position needs to be incremented by one
         # if ref_allele[0] == alt_allele[0] and ref_allele != alt_allele:
         #     # shift ref allele and alt allele by one nucleotide, set as "-" if len == 1
@@ -1489,9 +1489,9 @@ def capture_warnings_for_extracted_maf_record(filename, record_index, maf_record
 
     # check allele fields are not empty
     if (
-        (is_missing_data_value(maf_record["Reference_Allele"]) or maf_record["Reference_Allele"] == "N") and
-        (is_missing_data_value(maf_record["Tumor_Seq_Allele1"]) or maf_record["Tumor_Seq_Allele1"] == "N") and
-        (is_missing_data_value(maf_record["Tumor_Seq_Allele2"]) or maf_record["Tumor_Seq_Allele2"] == "N")
+        is_missing_data_value(maf_record["Reference_Allele"]) and
+        is_missing_data_value(maf_record["Tumor_Seq_Allele1"]) and
+        is_missing_data_value(maf_record["Tumor_Seq_Allele2"])
         ):
         message = "[line %s], all allele fields are missing or invalid values ('Reference_Allele', 'Tumor_Seq_Allele1', 'Tumor_Seq_Allele2'): (%s, %s, %s)" % ((record_index + 1), maf_record["Reference_Allele"], maf_record["Tumor_Seq_Allele1"], maf_record["Tumor_Seq_Allele2"])
         update_problematic_report_for_file(filename, "WARNING", message)
