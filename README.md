@@ -44,3 +44,23 @@ The MAF merging script supports two different input arguments for merging MAFs: 
 ### Germline files
 
 If "germline" is in the filename then `standardize_mutation_data.py` will assume that the file contains germline data. This will set the value in the output MAF `Mutation_Status` column to "GERMLINE". Please follow this naming convention if the mutation data file(s) are germline data.
+
+### Testing
+
+Run tests for python script(s) by:
+
+1. Install `pytest` via [here](https://docs.pytest.org/en/6.2.x/getting-started.html#install-pytest)
+2. Running the following:
+
+```
+pytest test
+```
+
+Run tests for bash script(s) by:
+
+1. Install `bats` via [here](https://bats-core.readthedocs.io/en/stable/installation.html)
+2. Running the following:
+
+```
+bats test
+```
