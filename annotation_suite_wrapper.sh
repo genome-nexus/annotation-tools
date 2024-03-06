@@ -25,13 +25,15 @@ command -v python3 >/dev/null 2>&1 || { echo "python3 is required to run this pr
 command -v java >/dev/null 2>&1 || { echo "java is required to run this program - aborting..." >&2; exit 1; }
 
 function usage {
-    echo "annotation_suite_wrapper.sh"
+    echo "Usage: annotation_suite_wrapper.sh [options]"
+    echo "Options:"
     echo -e "\t-i | --input-directory               input data directory for processing mutation data files [REQUIRED]"
     echo -e "\t-o | --output-directory              output directory to write processed and annotated mutation data files to [REQUIRED]"
     echo -e "\t-m | --merged-mutation-file          path to write the merged mutation file for the center [REQUIRED]"
     echo -e "\t-c | --center-name                   name of the center being processed [REQUIRED]"
     echo -e "\t-s | --sequence-source               name of the sequence source used by the center (i.e., WXS, WGS) [REQUIRED]"
     echo -e "\t-p | --annotation-scripts-home       path to the annotation suite scripts directory [REQUIRED]"
+    echo -e "\t--help                               display this help message"
 }
 
 # parse input arguments
@@ -66,6 +68,10 @@ case $i in
     ANNOTATION_SUITE_SCRIPTS_HOME="${i#*=}"
     echo -e "\tANNOTATION_SUITE_SCRIPTS_HOME=${ANNOTATION_SUITE_SCRIPTS_HOME}"
     shift
+    ;;
+    --help)
+    usage
+    exit 0
     ;;
     *)
     ;;
@@ -102,7 +108,7 @@ function initAndCleanWorkingDirectory {
     # (1): directory to be cleaned / initialized
     data_dir=$1
     if [ -d "${data_dir}" ] ; then
-        rm -f "${data_dir}"/*
+        rm -rf "${data_dir}"/*
     else
         mkdir "${data_dir}"
         if [ $? -gt 0 ] ; then
