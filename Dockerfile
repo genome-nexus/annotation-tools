@@ -3,14 +3,15 @@ FROM python:3.8-slim-buster
 
 # Pull annotatationPipeline.jar from existing build
 ENV GN_HOME=/genome-nexus-annotation-pipeline
-COPY --from=build $GN_HOME/annotationPipeline/target/annotationPipeline.jar $GN_HOME/annotationPipeline/target/annotationPipeline.jar
+ENV SCRIPTS_HOME=/annotation-tools
+COPY --from=build $GN_HOME/annotationPipeline/target/annotationPipeline.jar $SCRIPTS_HOME/annotator.jar
 
 # Install Java
 RUN apt-get update && \
     apt-get install -y openjdk-11-jdk && \
     rm -rf /var/lib/apt/lists/*
 
-WORKDIR /annotation-tools
+WORKDIR $SCRIPTS_HOME
 
 # COPY requirements.txt requirements.txt
 COPY . .
