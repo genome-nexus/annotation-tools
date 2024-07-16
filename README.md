@@ -62,6 +62,15 @@ keytool -import -noprompt \
     -storepass annotation-tools
 ```
 
+### Updating an existing trust store
+
+If an existing trust store is already available, the `update_truststore.sh` script can be used to update it with the latest certificate. The script requires `openssl` and `keytool` be installed on the machine; it will pull the latest certificate from `https://genie.genomenexus.org` and update it in the trust store. 
+
+The script can be run as follows:
+```
+sh update_truststore.sh <path to truststore> <truststore password>
+```
+
 ### Install Python packages
 
 You need to have python3 installed.
